@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07131f" />
+  <title>Gaza 3D GIS Lab — V2</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar glass">
+      <div class="brand">
+        <div class="brand-mark">G3</div>
+        <div>
+          <h1>Gaza 3D GIS Lab</h1>
+          <p>تقسيم مكاني تفاعلي لنموذج غزة ثلاثي الأبعاد</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <label class="file-btn" for="model-file">تحميل GLB آخر</label>
+        <input id="model-file" type="file" accept=".glb,.gltf" hidden />
+        <button id="reset-view" class="ghost-btn">إعادة ضبط العرض</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar glass">
+        <section>
+          <div class="section-title-row">
+            <h2>النموذج</h2>
+            <span id="model-state" class="badge loading">جارٍ التحميل</span>
+          </div>
+          <div class="model-card">
+            <strong id="model-name">Gaza Strip 2014</strong>
+            <span id="model-size">—</span>
+          </div>
+          <div class="stats-grid">
+            <div><span>المثلثات</span><strong id="triangles">—</strong></div>
+            <div><span>Meshes</span><strong id="meshes">—</strong></div>
+            <div><span>العرض</span><strong id="dim-x">—</strong></div>
+            <div><span>العمق</span><strong id="dim-z">—</strong></div>
+          </div>
+        </section>
+
+        <section>
+          <h2>التقسيم المكاني</h2>
+          <p class="hint">هذه المرحلة ليست AI بعد. هي تقسيم هندسي للـMesh إلى مناطق مستقلة، تمهيدًا لربط نموذج الذكاء الاصطناعي لاحقًا.</p>
+
+          <label class="field-label" for="grid-preset">دقة التقسيم</label>
+          <select id="grid-preset" class="select">
+            <option value="4x3">4 × 3 — سريع</option>
+            <option value="6x5" selected>6 × 5 — متوازن</option>
+            <option value="8x6">8 × 6 — أدق</option>
+            <option value="12x8">12 × 8 — عالي</option>
+          </select>
+
+          <button id="segment-btn" class="primary-btn" disabled>إنشاء المناطق القابلة للتحديد</button>
+          <div id="progress-wrap" class="progress-wrap hidden">
+            <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+            <span id="progress-label">0%</span>
+          </div>
+
+          <div class="toggle-row">
+            <label><input id="show-grid" type="checkbox" checked /> إظهار حدود الشبكة</label>
+            <label><input id="color-regions" type="checkbox" /> تلوين المناطق</label>
+          </div>
+        </section>
+
+        <section id="selection-panel" class="selection-panel muted">
+          <div class="section-title-row">
+            <h2>المنطقة المحددة</h2>
+            <span id="selected-id" class="badge">لا يوجد</span>
+          </div>
+          <div class="selection-empty" id="selection-empty">اضغط على أي منطقة داخل النموذج بعد التقسيم.</div>
+          <div id="selection-data" class="hidden">
+            <div class="stats-grid compact">
+              <div><span>المثلثات</span><strong id="sel-triangles">—</strong></div>
+              <div><span>نسبة النموذج</span><strong id="sel-percent">—</strong></div>
+              <div><span>عرض المنطقة</span><strong id="sel-x">—</strong></div>
+              <div><span>عمق المنطقة</span><strong id="sel-z">—</strong></div>
+            </div>
+            <div class="action-stack">
+              <button id="focus-selected" class="secondary-btn">تركيز الكاميرا</button>
+              <button id="export-json" class="secondary-btn">تصدير بيانات المنطقة JSON</button>
+              <button id="clear-selected" class="ghost-btn">إلغاء التحديد</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="pipeline">
+          <h2>مسار المشروع</h2>
+          <ol>
+            <li class="done">تحميل النموذج الحقيقي</li>
+            <li class="active">تقسيم وتحديد أجزاء الـMesh</li>
+            <li>AI Segmentation / Classification</li>
+            <li>Georeferencing</li>
+            <li>GIS Export</li>
+          </ol>
+        </section>
+
+        <section class="license">
+          <strong>المصدر والترخيص</strong>
+          <p>Gaza Strip 2014 — Assaf Bezalel (Bez) — CC BY 4.0</p>
+          <a href="https://sketchfab.com/3d-models/gaza-strip-2014-248951f05c38426aa4a0aa0ca3402bfe" target="_blank" rel="noreferrer">فتح المصدر على Sketchfab</a>
+        </section>
+      </aside>
+
+      <section class="viewer-shell glass">
+        <div id="viewer"></div>
+        <div class="viewer-toolbar">
+          <button id="view-original" class="tool active">الأصل</button>
+          <button id="view-segments" class="tool" disabled>المناطق</button>
+          <button id="toggle-wireframe" class="tool">Wireframe</button>
+        </div>
+        <div id="status" class="status-pill">تحميل نموذج غزة…</div>
+        <div class="axis-note">الإحداثيات الحالية محلية وليست GIS / WGS84</div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
