@@ -493,7 +493,8 @@ function onPointerDown(event) {
     return;
   }
 
-  const hits = raycaster.intersectObjects(state.semanticGroup.children, false);
+  const hits = raycaster.intersectObjects(state.semanticGroup.children, false)
+    .filter(hit => hit.object.visible);
   if (hits.length) {
     const id = cellIdFromPoint(hits[0].point);
     if (state.cells.has(id)) selectCell(id);
