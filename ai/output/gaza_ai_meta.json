@@ -1,0 +1,31 @@
+{
+  "schema": "gaza-3d-pointnet-result/v1",
+  "model": "PointNetSemanticSeg",
+  "framework": "PyTorch",
+  "classes": [
+    "roof",
+    "wall",
+    "ground",
+    "debris",
+    "other"
+  ],
+  "full_face_count": 472965,
+  "display_point_count": 220000,
+  "counts": {
+    "roof": 121573,
+    "wall": 112167,
+    "ground": 14307,
+    "debris": 104624,
+    "other": 120294
+  },
+  "agreement_with_bootstrap_labels": 0.5942025308426627,
+  "mean_confidence": 0.8573969006538391,
+  "files": {
+    "full_labels": "gaza_ai_labels.u8",
+    "full_confidence": "gaza_ai_confidence.f16",
+    "display_positions": "gaza_ai_points.f32",
+    "display_labels": "gaza_ai_points_labels.u8",
+    "display_confidence": "gaza_ai_points_confidence.f16"
+  },
+  "note": "First neural baseline trained from V4 bootstrap labels. Manual labels are required for semantic improvement beyond the bootstrap teacher."
+}

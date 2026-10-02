@@ -1,0 +1,36 @@
+{
+  "faces": 472965,
+  "classes": [
+    "roof",
+    "wall",
+    "ground",
+    "debris",
+    "other"
+  ],
+  "counts": {
+    "roof": 125140,
+    "wall": 112427,
+    "ground": 129849,
+    "debris": 74640,
+    "other": 30909
+  },
+  "normalization_center": [
+    0.08437395095825195,
+    0.19835638999938965,
+    1.1507749557495117
+  ],
+  "normalization_scale": 29.609285354614258,
+  "pseudo_label_method": "v4-local-ground-bootstrap",
+  "diagnostics": {
+    "grid": "30x30",
+    "ground_seed_cells": 483,
+    "ground_components": 5,
+    "p35": -1.818392038345337,
+    "p50": -1.6762768030166626,
+    "plane": [
+      0.007432603220928191,
+      -0.008001209689368405,
+      -1.8660718646734162
+    ]
+  }
+}
