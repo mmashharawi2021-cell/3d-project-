@@ -36,7 +36,8 @@ const state = {
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x07131f);
-scene.fog = new THREE.Fog(0x07131f, 55, 105);
+// Fog disabled: on portrait/mobile screens the camera must move farther back to fit the wide Gaza model, which previously fogged the model completely into the background.
+scene.fog = null;
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.01, 250);
 camera.position.set(22, 19, 28);
@@ -408,7 +409,7 @@ function fitCameraToBox(box, padding = 1.35) {
   const fitHeightDistance = maxSize / (2 * Math.atan(Math.PI * camera.fov / 360));
   const fitWidthDistance = fitHeightDistance / camera.aspect;
   const distance = padding * Math.max(fitHeightDistance, fitWidthDistance);
-  const direction = new THREE.Vector3(1, .72, 1).normalize();
+  const direction = new THREE.Vector3(1, .82, 1).normalize();
   camera.position.copy(center).add(direction.multiplyScalar(distance));
   controls.target.copy(center);
   camera.near = Math.max(distance / 1000, .005);
