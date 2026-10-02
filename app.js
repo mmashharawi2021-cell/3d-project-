@@ -13,12 +13,19 @@ const ui = {
   selX: $('sel-x'), selZ: $('sel-z'), focusSelected: $('focus-selected'), exportJson: $('export-json'),
   clearSelected: $('clear-selected'), viewOriginal: $('view-original'), viewSegments: $('view-segments'),
   toggleWireframe: $('toggle-wireframe'), status: $('status'), resetView: $('reset-view'),
-  modelFile: $('model-file')
+  modelFile: $('model-file'), viewSemantic: $('view-semantic'),
+  semanticBtn: $('semantic-btn'), semanticState: $('semantic-state'),
+  semanticProgressWrap: $('semantic-progress-wrap'), semanticProgressBar: $('semantic-progress-bar'),
+  semanticProgressLabel: $('semantic-progress-label'), semanticLegend: $('semantic-legend'),
+  exportTraining: $('export-training'), manualClass: $('manual-class'),
+  applyManualLabel: $('apply-manual-label'), autoClassRow: $('auto-class-row'),
+  autoClass: $('auto-class'), autoConfidence: $('auto-confidence')
 };
 
 const state = {
   modelRoot: null,
   segmentGroup: new THREE.Group(),
+  semanticGroup: new THREE.Group(),
   gridHelper: new THREE.Group(),
   highlightGroup: new THREE.Group(),
   modelBox: new THREE.Box3(),
@@ -31,7 +38,18 @@ const state = {
   mode: 'original',
   wireframe: false,
   sourceName: 'Gaza Strip 2014',
-  sourceSize: 0
+  sourceSize: 0,
+  semanticReady: false,
+  semanticSummary: null,
+  semanticMethod: 'geometry-baseline-v1'
+};
+
+const SEMANTIC_CLASSES = {
+  roof:   { label: 'سطح',  color: 0x42c7f5 },
+  wall:   { label: 'جدار', color: 0xffb454 },
+  ground: { label: 'أرض',  color: 0x69d59a },
+  debris: { label: 'ركام', color: 0xf06a6a },
+  other:  { label: 'أخرى', color: 0xaab9c5 }
 };
 
 const scene = new THREE.Scene();
@@ -58,8 +76,9 @@ const dir = new THREE.DirectionalLight(0xffffff, 2.4);
 dir.position.set(12, 24, 10);
 scene.add(dir);
 
-scene.add(state.segmentGroup, state.gridHelper, state.highlightGroup);
+scene.add(state.segmentGroup, state.semanticGroup, state.gridHelper, state.highlightGroup);
 state.segmentGroup.visible = false;
+state.semanticGroup.visible = false;
 state.gridHelper.visible = false;
 
 const raycaster = new THREE.Raycaster();
@@ -69,6 +88,9 @@ const tempA = new THREE.Vector3();
 const tempB = new THREE.Vector3();
 const tempC = new THREE.Vector3();
 const tempCentroid = new THREE.Vector3();
+const tempEdge1 = new THREE.Vector3();
+const tempEdge2 = new THREE.Vector3();
+const tempNormal = new THREE.Vector3();
 const resizeObserver = new ResizeObserver(resize);
 resizeObserver.observe(ui.viewer);
 
@@ -144,6 +166,7 @@ async function loadGLB(url, name, size) {
   ui.modelState.className = 'badge ready';
   ui.modelState.textContent = 'جاهز';
   ui.segmentBtn.disabled = false;
+  ui.semanticBtn.disabled = true;
   ui.modelName.textContent = name.replace(/\.(glb|gltf)$/i, '');
   ui.modelSize.textContent = state.sourceSize ? `${(state.sourceSize / 1024 / 1024).toFixed(1)} MB` : 'ملف محلي';
   setStatus('النموذج جاهز. أنشئ التقسيم المكاني ثم اضغط على أي منطقة.');
@@ -168,6 +191,7 @@ function calculateModelStats() {
 }
 
 function clearCurrentModel() {
+  clearSemanticResults();
   clearSegments();
   clearSelection();
   if (state.modelRoot) {
@@ -205,11 +229,14 @@ function clearSegments() {
   state.segmentGroup.visible = false;
   state.gridHelper.visible = false;
   ui.viewSegments.disabled = true;
+  ui.semanticBtn.disabled = true;
+  clearSemanticResults();
   setViewMode('original');
 }
 
 async function buildSegments() {
   if (!state.modelRoot) return;
+  clearSemanticResults();
   const [cols, rows] = ui.gridPreset.value.split('x').map(Number);
   clearSelection();
   disposeGroup(state.segmentGroup, false);
@@ -264,7 +291,11 @@ async function buildSegments() {
           id, row, col, triangles: 0,
           box: new THREE.Box3().makeEmpty(),
           bySource: new Map(),
-          meshes: []
+          meshes: [],
+          semanticCounts: {},
+          dominantClass: null,
+          confidence: 0,
+          manualLabel: ''
         };
         state.cells.set(id, cell);
       }
@@ -317,6 +348,7 @@ async function buildSegments() {
   applyRegionColors();
   state.segmented = true;
   ui.viewSegments.disabled = false;
+  ui.semanticBtn.disabled = false;
   ui.segmentBtn.disabled = false;
   ui.gridPreset.disabled = false;
   ui.progressBar.style.width = '100%';
@@ -361,12 +393,16 @@ function applyRegionColors() {
 function setViewMode(mode) {
   state.mode = mode;
   const seg = mode === 'segments' && state.segmented;
-  if (state.modelRoot) state.modelRoot.visible = !seg;
+  const sem = mode === 'semantic' && state.semanticReady;
+  const original = !seg && !sem;
+  if (state.modelRoot) state.modelRoot.visible = original;
   state.segmentGroup.visible = seg;
-  state.gridHelper.visible = seg && ui.showGrid.checked;
-  state.highlightGroup.visible = seg;
-  ui.viewOriginal.classList.toggle('active', !seg);
+  state.semanticGroup.visible = sem;
+  state.gridHelper.visible = (seg || sem) && ui.showGrid.checked;
+  state.highlightGroup.visible = seg || sem;
+  ui.viewOriginal.classList.toggle('active', original);
   ui.viewSegments.classList.toggle('active', seg);
+  ui.viewSemantic.classList.toggle('active', sem);
 }
 
 function clearSelection() {
@@ -375,6 +411,8 @@ function clearSelection() {
   ui.selectedId.textContent = 'لا يوجد';
   ui.selectionEmpty.classList.remove('hidden');
   ui.selectionData.classList.add('hidden');
+  ui.autoClassRow.classList.add('hidden');
+  ui.manualClass.value = '';
   $('selection-panel').classList.add('muted');
 }
 
@@ -399,20 +437,50 @@ function selectCell(id) {
   ui.selPercent.textContent = `${((cell.triangles / state.totalTriangles) * 100).toFixed(2)}%`;
   ui.selX.textContent = formatDim(size.x);
   ui.selZ.textContent = formatDim(size.z);
+  ui.manualClass.value = cell.manualLabel || '';
+  if (cell.dominantClass) {
+    ui.autoClassRow.classList.remove('hidden');
+    ui.autoClass.textContent = SEMANTIC_CLASSES[cell.dominantClass]?.label || cell.dominantClass;
+    ui.autoConfidence.textContent = `ثقة هندسية تقريبية: ${(cell.confidence * 100).toFixed(1)}%`;
+  } else {
+    ui.autoClassRow.classList.add('hidden');
+  }
   ui.selectionEmpty.classList.add('hidden');
   ui.selectionData.classList.remove('hidden');
   $('selection-panel').classList.remove('muted');
   setStatus(`تم تحديد المنطقة ${id} — ${formatNumber(cell.triangles)} مثلث.`);
 }
 
+function cellIdFromPoint(point) {
+  const [cols, rows] = ui.gridPreset.value.split('x').map(Number);
+  const min = state.modelBox.min, max = state.modelBox.max;
+  const dx = Math.max(max.x - min.x, 1e-8);
+  const dz = Math.max(max.z - min.z, 1e-8);
+  let col = Math.floor(((point.x - min.x) / dx) * cols);
+  let row = Math.floor(((point.z - min.z) / dz) * rows);
+  col = THREE.MathUtils.clamp(col, 0, cols - 1);
+  row = THREE.MathUtils.clamp(row, 0, rows - 1);
+  return `R${String(row + 1).padStart(2, '0')}-C${String(col + 1).padStart(2, '0')}`;
+}
+
 function onPointerDown(event) {
-  if (state.mode !== 'segments' || !state.segmented) return;
+  if (!state.segmented || (state.mode !== 'segments' && state.mode !== 'semantic')) return;
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(state.segmentGroup.children, false);
-  if (hits.length) selectCell(hits[0].object.userData.cellId);
+
+  if (state.mode === 'segments') {
+    const hits = raycaster.intersectObjects(state.segmentGroup.children, false);
+    if (hits.length) selectCell(hits[0].object.userData.cellId);
+    return;
+  }
+
+  const hits = raycaster.intersectObjects(state.semanticGroup.children, false);
+  if (hits.length) {
+    const id = cellIdFromPoint(hits[0].point);
+    if (state.cells.has(id)) selectCell(id);
+  }
 }
 
 function fitCameraToBox(box, padding = 1.18) {
@@ -454,6 +522,13 @@ function exportSelectedJSON() {
     region_id: cell.id,
     triangles: cell.triangles,
     share_of_model_percent: Number(((cell.triangles / state.totalTriangles) * 100).toFixed(4)),
+    semantic_prediction: cell.dominantClass ? {
+      class: cell.dominantClass,
+      label_ar: SEMANTIC_CLASSES[cell.dominantClass]?.label || cell.dominantClass,
+      confidence: Number(cell.confidence.toFixed(4)),
+      counts: cell.semanticCounts
+    } : null,
+    manual_training_label: cell.manualLabel || null,
     bounds: {
       min: { x: cell.box.min.x, y: cell.box.min.y, z: cell.box.min.z },
       max: { x: cell.box.max.x, y: cell.box.max.y, z: cell.box.max.z },
@@ -469,6 +544,260 @@ function exportSelectedJSON() {
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
 
+function clearSemanticResults() {
+  disposeGroup(state.semanticGroup, true);
+  state.semanticGroup.visible = false;
+  state.semanticReady = false;
+  state.semanticSummary = null;
+  ui.viewSemantic.disabled = true;
+  ui.exportTraining.disabled = true;
+  ui.semanticLegend.innerHTML = '';
+  ui.semanticLegend.classList.add('hidden');
+  ui.semanticState.className = 'badge';
+  ui.semanticState.textContent = 'لم يبدأ';
+  for (const cell of state.cells.values()) {
+    cell.semanticCounts = {};
+    cell.dominantClass = null;
+    cell.confidence = 0;
+  }
+}
+
+function classifyTriangle(a, b, c) {
+  tempEdge1.subVectors(b, a);
+  tempEdge2.subVectors(c, a);
+  tempNormal.crossVectors(tempEdge1, tempEdge2);
+  const lenSq = tempNormal.lengthSq();
+  if (lenSq < 1e-12) return 'other';
+  tempNormal.normalize();
+
+  tempCentroid.copy(a).add(b).add(c).multiplyScalar(1 / 3);
+  const height = Math.max(state.modelBox.max.y - state.modelBox.min.y, 1e-8);
+  const yNorm = THREE.MathUtils.clamp((tempCentroid.y - state.modelBox.min.y) / height, 0, 1);
+  const horizontal = Math.abs(tempNormal.y);
+
+  if (horizontal >= 0.80) {
+    if (yNorm <= 0.20) return 'ground';
+    if (yNorm >= 0.27) return 'roof';
+    return 'other';
+  }
+  if (horizontal <= 0.34 && yNorm >= 0.12) return 'wall';
+  if (yNorm <= 0.48 && horizontal < 0.80) return 'debris';
+  return 'other';
+}
+
+function finalizeCellSemanticStats() {
+  for (const cell of state.cells.values()) {
+    const entries = Object.entries(cell.semanticCounts || {});
+    const total = entries.reduce((sum, [, count]) => sum + count, 0);
+    if (!total) {
+      cell.dominantClass = null;
+      cell.confidence = 0;
+      continue;
+    }
+    entries.sort((a, b) => b[1] - a[1]);
+    cell.dominantClass = entries[0][0];
+    cell.confidence = entries[0][1] / total;
+  }
+}
+
+function renderSemanticLegend(summary) {
+  ui.semanticLegend.innerHTML = '';
+  const total = Object.values(summary).reduce((a, b) => a + b, 0) || 1;
+  for (const [key, meta] of Object.entries(SEMANTIC_CLASSES)) {
+    const count = summary[key] || 0;
+    const row = document.createElement('div');
+    row.className = 'semantic-item';
+    row.innerHTML = `
+      <i class="semantic-swatch" style="background:#${meta.color.toString(16).padStart(6, '0')}"></i>
+      <span>${meta.label}</span>
+      <strong>${((count / total) * 100).toFixed(1)}% · ${formatNumber(count)}</strong>
+    `;
+    ui.semanticLegend.appendChild(row);
+  }
+  ui.semanticLegend.classList.remove('hidden');
+}
+
+async function runSemanticBaseline() {
+  if (!state.modelRoot || !state.segmented) {
+    setStatus('أنشئ التقسيم المكاني أولًا، ثم شغّل التحليل الدلالي.');
+    return;
+  }
+
+  disposeGroup(state.semanticGroup, true);
+  state.semanticReady = false;
+  ui.viewSemantic.disabled = true;
+  ui.exportTraining.disabled = true;
+  ui.semanticBtn.disabled = true;
+  ui.semanticState.className = 'badge running';
+  ui.semanticState.textContent = 'جارٍ التحليل';
+  ui.semanticProgressWrap.classList.remove('hidden');
+  ui.semanticProgressBar.style.width = '0%';
+  ui.semanticProgressLabel.textContent = '0%';
+  setStatus('تحليل اتجاهات المثلثات والارتفاعات لتوليد Semantic Labels أولية…');
+
+  for (const cell of state.cells.values()) {
+    cell.semanticCounts = {};
+    cell.dominantClass = null;
+    cell.confidence = 0;
+  }
+
+  state.modelRoot.updateMatrixWorld(true);
+  state.modelBox.setFromObject(state.modelRoot);
+  const sourceMeshes = [];
+  state.modelRoot.traverse(obj => {
+    if (obj.isMesh && obj.geometry?.getAttribute('position')) sourceMeshes.push(obj);
+  });
+
+  const classKeys = Object.keys(SEMANTIC_CLASSES);
+  const buckets = sourceMeshes.map(() => Object.fromEntries(classKeys.map(k => [k, []])));
+  const summary = Object.fromEntries(classKeys.map(k => [k, 0]));
+  let processed = 0;
+
+  for (let sourceIndex = 0; sourceIndex < sourceMeshes.length; sourceIndex++) {
+    const mesh = sourceMeshes[sourceIndex];
+    const geometry = mesh.geometry;
+    const pos = geometry.getAttribute('position');
+    const index = geometry.index;
+    const faceCount = index ? index.count / 3 : pos.count / 3;
+    const matrixWorld = mesh.matrixWorld.clone();
+
+    for (let f = 0; f < faceCount; f++) {
+      const ia = index ? index.getX(f * 3) : f * 3;
+      const ib = index ? index.getX(f * 3 + 1) : f * 3 + 1;
+      const ic = index ? index.getX(f * 3 + 2) : f * 3 + 2;
+
+      tempA.fromBufferAttribute(pos, ia).applyMatrix4(matrixWorld);
+      tempB.fromBufferAttribute(pos, ib).applyMatrix4(matrixWorld);
+      tempC.fromBufferAttribute(pos, ic).applyMatrix4(matrixWorld);
+
+      const cls = classifyTriangle(tempA, tempB, tempC);
+      buckets[sourceIndex][cls].push(ia, ib, ic);
+      summary[cls]++;
+
+      tempCentroid.copy(tempA).add(tempB).add(tempC).multiplyScalar(1 / 3);
+      const cellId = cellIdFromPoint(tempCentroid);
+      const cell = state.cells.get(cellId);
+      if (cell) cell.semanticCounts[cls] = (cell.semanticCounts[cls] || 0) + 1;
+
+      processed++;
+      if (processed % 16000 === 0) {
+        const pct = Math.min(94, Math.round((processed / state.totalTriangles) * 94));
+        ui.semanticProgressBar.style.width = `${pct}%`;
+        ui.semanticProgressLabel.textContent = `${pct}%`;
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+  }
+
+  for (let sourceIndex = 0; sourceIndex < sourceMeshes.length; sourceIndex++) {
+    const source = sourceMeshes[sourceIndex];
+    for (const key of classKeys) {
+      const arr = buckets[sourceIndex][key];
+      if (!arr.length) continue;
+
+      const sub = new THREE.BufferGeometry();
+      for (const [name, attr] of Object.entries(source.geometry.attributes)) sub.setAttribute(name, attr);
+      sub.setIndex(new THREE.BufferAttribute(new Uint32Array(arr), 1));
+
+      const material = new THREE.MeshBasicMaterial({
+        color: SEMANTIC_CLASSES[key].color,
+        side: THREE.DoubleSide,
+        transparent: false,
+        wireframe: state.wireframe
+      });
+      const part = new THREE.Mesh(sub, material);
+      part.matrixAutoUpdate = false;
+      part.matrix.copy(source.matrixWorld);
+      part.frustumCulled = false;
+      part.userData.semanticClass = key;
+      state.semanticGroup.add(part);
+    }
+  }
+
+  finalizeCellSemanticStats();
+  state.semanticSummary = summary;
+  state.semanticReady = true;
+  ui.semanticProgressBar.style.width = '100%';
+  ui.semanticProgressLabel.textContent = '100%';
+  ui.semanticState.className = 'badge ready';
+  ui.semanticState.textContent = 'Baseline جاهز';
+  ui.semanticBtn.disabled = false;
+  ui.viewSemantic.disabled = false;
+  ui.exportTraining.disabled = false;
+  renderSemanticLegend(summary);
+  setViewMode('semantic');
+
+  if (state.selectedCellId && state.cells.has(state.selectedCellId)) selectCell(state.selectedCellId);
+
+  const manualCount = [...state.cells.values()].filter(c => c.manualLabel).length;
+  setStatus(`اكتمل Semantic Baseline. راجع النتائج وصحح المناطق يدويًا لبناء Dataset التدريب. التصحيحات الحالية: ${manualCount}.`);
+  setTimeout(() => ui.semanticProgressWrap.classList.add('hidden'), 1000);
+}
+
+function applyManualTrainingLabel() {
+  if (!state.selectedCellId) {
+    setStatus('حدد منطقة أولًا ثم اختر Label.');
+    return;
+  }
+  const cell = state.cells.get(state.selectedCellId);
+  if (!cell) return;
+  cell.manualLabel = ui.manualClass.value || '';
+  const label = cell.manualLabel
+    ? (SEMANTIC_CLASSES[cell.manualLabel]?.label || ui.manualClass.options[ui.manualClass.selectedIndex]?.text || cell.manualLabel)
+    : 'بدون تصحيح';
+  setStatus(`تم حفظ ${cell.id} كـ Training Label: ${label}.`);
+}
+
+function exportTrainingLabels() {
+  if (!state.segmented) return;
+  const regions = [...state.cells.values()]
+    .sort((a, b) => a.row - b.row || a.col - b.col)
+    .map(cell => {
+      const size = cell.box.getSize(new THREE.Vector3());
+      const center = cell.box.getCenter(new THREE.Vector3());
+      return {
+        region_id: cell.id,
+        row: cell.row,
+        col: cell.col,
+        triangles: cell.triangles,
+        prediction: cell.dominantClass ? {
+          class: cell.dominantClass,
+          confidence: Number(cell.confidence.toFixed(5)),
+          counts: cell.semanticCounts
+        } : null,
+        manual_label: cell.manualLabel || null,
+        bounds_local: {
+          min: { x: cell.box.min.x, y: cell.box.min.y, z: cell.box.min.z },
+          max: { x: cell.box.max.x, y: cell.box.max.y, z: cell.box.max.z },
+          size: { x: size.x, y: size.y, z: size.z },
+          center: { x: center.x, y: center.y, z: center.z }
+        }
+      };
+    });
+
+  const payload = {
+    schema: 'gaza-3d-training-labels/v1',
+    created_at: new Date().toISOString(),
+    model: state.sourceName,
+    coordinate_system: 'local / ungeoreferenced',
+    baseline_method: state.semanticMethod,
+    warning: 'Automatic predictions are geometry-based baseline labels, not a trained neural network.',
+    grid: ui.gridPreset.value,
+    total_triangles: state.totalTriangles,
+    semantic_summary: state.semanticSummary,
+    manual_label_count: regions.filter(r => r.manual_label).length,
+    regions
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gaza_3d_training_labels.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  setStatus('تم تصدير Training Labels بصيغة JSON.');
+}
+
 function toggleWireframe() {
   state.wireframe = !state.wireframe;
   ui.toggleWireframe.classList.toggle('active', state.wireframe);
@@ -479,12 +808,17 @@ function toggleWireframe() {
     }
   });
   state.segmentGroup.traverse(obj => { if (obj.isMesh) { obj.material.wireframe = state.wireframe; obj.material.needsUpdate = true; } });
+  state.semanticGroup.traverse(obj => { if (obj.isMesh) { obj.material.wireframe = state.wireframe; obj.material.needsUpdate = true; } });
 }
 
 ui.segmentBtn.addEventListener('click', buildSegments);
 ui.viewOriginal.addEventListener('click', () => setViewMode('original'));
 ui.viewSegments.addEventListener('click', () => setViewMode('segments'));
-ui.showGrid.addEventListener('change', () => { state.gridHelper.visible = state.mode === 'segments' && ui.showGrid.checked; });
+ui.viewSemantic.addEventListener('click', () => setViewMode('semantic'));
+ui.semanticBtn.addEventListener('click', runSemanticBaseline);
+ui.applyManualLabel.addEventListener('click', applyManualTrainingLabel);
+ui.exportTraining.addEventListener('click', exportTrainingLabels);
+ui.showGrid.addEventListener('change', () => { state.gridHelper.visible = (state.mode === 'segments' || state.mode === 'semantic') && ui.showGrid.checked; });
 ui.colorRegions.addEventListener('change', applyRegionColors);
 ui.clearSelected.addEventListener('click', clearSelection);
 ui.focusSelected.addEventListener('click', () => {
