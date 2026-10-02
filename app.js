@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+const APP_VERSION = 'V4.0.1';
+
 const $ = (id) => document.getElementById(id);
 const ui = {
   viewer: $('viewer'), modelState: $('model-state'), modelName: $('model-name'), modelSize: $('model-size'),
@@ -22,8 +24,10 @@ const ui = {
   autoClass: $('auto-class'), autoConfidence: $('auto-confidence'),
   semanticDiagnostics: $('semantic-diagnostics'), diagBins: $('diag-bins'),
   diagComponents: $('diag-components'), diagCleaned: $('diag-cleaned'),
-  diagRoughness: $('diag-roughness')
+  diagRoughness: $('diag-roughness'), appVersion: $('app-version')
 };
+
+if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
 
 const state = {
   modelRoot: null,
