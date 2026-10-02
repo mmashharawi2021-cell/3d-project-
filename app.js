@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const APP_VERSION = 'V4.0.1';
+const APP_VERSION = 'V4.1.0';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -24,7 +24,9 @@ const ui = {
   autoClass: $('auto-class'), autoConfidence: $('auto-confidence'),
   semanticDiagnostics: $('semantic-diagnostics'), diagBins: $('diag-bins'),
   diagComponents: $('diag-components'), diagCleaned: $('diag-cleaned'),
-  diagRoughness: $('diag-roughness'), appVersion: $('app-version')
+  diagRoughness: $('diag-roughness'), appVersion: $('app-version'),
+  semanticFilterActions: $('semantic-filter-actions'),
+  showAllSemantic: $('show-all-semantic'), hideAllSemantic: $('hide-all-semantic')
 };
 
 if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
@@ -49,7 +51,14 @@ const state = {
   semanticReady: false,
   semanticSummary: null,
   semanticDiagnostics: null,
-  semanticMethod: 'enhanced-geometry-v4-local-ground-roughness-components'
+  semanticMethod: 'enhanced-geometry-v4-local-ground-roughness-components',
+  semanticVisibility: {
+    roof: true,
+    wall: true,
+    ground: true,
+    debris: true,
+    other: true
+  }
 };
 
 const SEMANTIC_CLASSES = {
@@ -491,6 +500,25 @@ function onPointerDown(event) {
   }
 }
 
+function updateCameraClipping() {
+  if (!state.modelRoot) return;
+  const radius = Math.max(state.modelSphere.radius || 1, 0.001);
+  const distance = Math.max(camera.position.distanceTo(controls.target), 0.001);
+
+  // Keep the near plane tiny while zooming so façades and roofs do not disappear.
+  const desiredNear = Math.max(0.002, Math.min(radius * 0.0015, distance * 0.004));
+  const desiredFar = Math.max(distance + radius * 24, radius * 40, 500);
+
+  if (
+    Math.abs(camera.near - desiredNear) / Math.max(camera.near, 0.001) > 0.08 ||
+    Math.abs(camera.far - desiredFar) / Math.max(camera.far, 1) > 0.08
+  ) {
+    camera.near = desiredNear;
+    camera.far = desiredFar;
+    camera.updateProjectionMatrix();
+  }
+}
+
 function fitCameraToBox(box, padding = 1.18) {
   if (!box || box.isEmpty()) return;
 
@@ -507,15 +535,14 @@ function fitCameraToBox(box, padding = 1.18) {
   const direction = new THREE.Vector3(0.78, 0.92, 1).normalize();
   camera.up.set(0, 1, 0);
   camera.position.copy(center).addScaledVector(direction, distance);
-  camera.near = Math.max(distance - radius * 2.5, 0.01);
-  camera.far = distance + radius * 8;
-  camera.updateProjectionMatrix();
   camera.lookAt(center);
 
   controls.target.copy(center);
-  controls.minDistance = radius * 0.15;
+  controls.minDistance = radius * 0.025;
   controls.maxDistance = distance * 5;
   controls.update();
+
+  updateCameraClipping();
 }
 
 function exportSelectedJSON() {
@@ -562,6 +589,7 @@ function clearSemanticResults() {
   ui.exportTraining.disabled = true;
   ui.semanticLegend.innerHTML = '';
   ui.semanticLegend.classList.add('hidden');
+  ui.semanticFilterActions?.classList.add('hidden');
   ui.semanticDiagnostics.classList.add('hidden');
   ui.semanticState.className = 'badge';
   ui.semanticState.textContent = 'لم يبدأ';
@@ -982,21 +1010,53 @@ function finalizeCellSemanticStats() {
   }
 }
 
+function applySemanticVisibility() {
+  state.semanticGroup.traverse(obj => {
+    if (!obj.isMesh) return;
+    const cls = obj.userData.semanticClass;
+    if (!cls) return;
+    obj.visible = state.semanticVisibility[cls] !== false;
+  });
+
+  ui.semanticLegend.querySelectorAll('input[data-semantic-class]').forEach(input => {
+    input.checked = state.semanticVisibility[input.dataset.semanticClass] !== false;
+  });
+}
+
+function setAllSemanticVisibility(visible) {
+  for (const key of Object.keys(SEMANTIC_CLASSES)) state.semanticVisibility[key] = visible;
+  applySemanticVisibility();
+  setStatus(visible ? 'تم إظهار جميع الفئات الدلالية.' : 'تم إخفاء جميع الفئات الدلالية.');
+}
+
 function renderSemanticLegend(summary) {
   ui.semanticLegend.innerHTML = '';
   const total = Object.values(summary).reduce((a, b) => a + b, 0) || 1;
+
   for (const [key, meta] of Object.entries(SEMANTIC_CLASSES)) {
     const count = summary[key] || 0;
-    const row = document.createElement('div');
-    row.className = 'semantic-item';
+    const row = document.createElement('label');
+    row.className = 'semantic-item semantic-toggle-item';
     row.innerHTML = `
+      <input type="checkbox" data-semantic-class="${key}" ${state.semanticVisibility[key] !== false ? 'checked' : ''}>
       <i class="semantic-swatch" style="background:#${meta.color.toString(16).padStart(6, '0')}"></i>
       <span>${meta.label}</span>
       <strong>${((count / total) * 100).toFixed(1)}% · ${formatNumber(count)}</strong>
     `;
+
+    const checkbox = row.querySelector('input');
+    checkbox.addEventListener('change', () => {
+      state.semanticVisibility[key] = checkbox.checked;
+      applySemanticVisibility();
+      setStatus(`${meta.label}: ${checkbox.checked ? 'ظاهر' : 'مخفي'}.`);
+    });
+
     ui.semanticLegend.appendChild(row);
   }
+
   ui.semanticLegend.classList.remove('hidden');
+  ui.semanticFilterActions?.classList.remove('hidden');
+  applySemanticVisibility();
 }
 
 async function runSemanticBaseline() {
@@ -1230,6 +1290,7 @@ async function runSemanticBaseline() {
   ui.viewSemantic.disabled = false;
   ui.exportTraining.disabled = false;
   renderSemanticLegend(summary);
+  applySemanticVisibility();
   setViewMode('semantic');
 
   if (state.selectedCellId && state.cells.has(state.selectedCellId)) selectCell(state.selectedCellId);
@@ -1325,6 +1386,8 @@ ui.viewSemantic.addEventListener('click', () => setViewMode('semantic'));
 ui.semanticBtn.addEventListener('click', runSemanticBaseline);
 ui.applyManualLabel.addEventListener('click', applyManualTrainingLabel);
 ui.exportTraining.addEventListener('click', exportTrainingLabels);
+ui.showAllSemantic?.addEventListener('click', () => setAllSemanticVisibility(true));
+ui.hideAllSemantic?.addEventListener('click', () => setAllSemanticVisibility(false));
 ui.showGrid.addEventListener('change', () => { state.gridHelper.visible = (state.mode === 'segments' || state.mode === 'semantic') && ui.showGrid.checked; });
 ui.colorRegions.addEventListener('change', applyRegionColors);
 ui.clearSelected.addEventListener('click', clearSelection);
@@ -1352,6 +1415,7 @@ ui.modelFile.addEventListener('change', async e => {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+  updateCameraClipping();
   renderer.render(scene, camera);
 }
 
