@@ -64,6 +64,7 @@ def main():
     centers[display_idx].astype(np.float32).tofile(out_dir / "gaza_ai_points.f32")
     all_labels[display_idx].astype(np.uint8).tofile(out_dir / "gaza_ai_points_labels.u8")
     all_conf[display_idx].astype(np.float16).tofile(out_dir / "gaza_ai_points_confidence.f16")
+    display_idx.astype(np.uint32).tofile(out_dir / "gaza_ai_points_face_index.u32")
 
     counts = np.bincount(all_labels, minlength=len(CLASS_NAMES))
     agreement = float(np.mean(all_labels == pseudo))
@@ -85,7 +86,11 @@ def main():
             "display_positions": "gaza_ai_points.f32",
             "display_labels": "gaza_ai_points_labels.u8",
             "display_confidence": "gaza_ai_points_confidence.f16",
+            "display_face_index": "gaza_ai_points_face_index.u32"
         },
+        "manual_ground_truth_total": int(ckpt.get("manual_ground_truth_total", 0)),
+        "manual_ground_truth_train": int(ckpt.get("manual_ground_truth_train", 0)),
+        "manual_ground_truth_validation": ckpt.get("manual_ground_truth_validation"),
         "note": "First neural baseline trained from V4 bootstrap labels. Manual labels are required for semantic improvement beyond the bootstrap teacher.",
     }
     (out_dir / "gaza_ai_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
