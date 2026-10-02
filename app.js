@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const APP_VERSION = 'V4.1.0';
+const APP_VERSION = 'V4.2.0';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -26,7 +26,13 @@ const ui = {
   diagComponents: $('diag-components'), diagCleaned: $('diag-cleaned'),
   diagRoughness: $('diag-roughness'), appVersion: $('app-version'),
   semanticFilterActions: $('semantic-filter-actions'),
-  showAllSemantic: $('show-all-semantic'), hideAllSemantic: $('hide-all-semantic')
+  showAllSemantic: $('show-all-semantic'), hideAllSemantic: $('hide-all-semantic'),
+  semanticClassPanel: $('semantic-class-panel'), selectedClassBadge: $('selected-class-badge'),
+  classTriangles: $('class-triangles'), classPercent: $('class-percent'),
+  classRegions: $('class-regions'), classVisibleState: $('class-visible-state'),
+  soloSelectedClass: $('solo-selected-class'), restoreSemanticView: $('restore-semantic-view'),
+  exportClassJson: $('export-class-json'), exportClassObj: $('export-class-obj'),
+  clearClassSelection: $('clear-class-selection')
 };
 
 if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
@@ -52,6 +58,7 @@ const state = {
   semanticSummary: null,
   semanticDiagnostics: null,
   semanticMethod: 'enhanced-geometry-v4-local-ground-roughness-components',
+  selectedSemanticClass: null,
   semanticVisibility: {
     roof: true,
     wall: true,
@@ -458,7 +465,7 @@ function selectCell(id) {
   if (cell.dominantClass) {
     ui.autoClassRow.classList.remove('hidden');
     ui.autoClass.textContent = SEMANTIC_CLASSES[cell.dominantClass]?.label || cell.dominantClass;
-    ui.autoConfidence.textContent = `ثقة V4 تقريبية: ${(cell.confidence * 100).toFixed(1)}%`;
+    ui.autoConfidence.textContent = `ثقة V4.2 تقريبية: ${(cell.confidence * 100).toFixed(1)}%`;
   } else {
     ui.autoClassRow.classList.add('hidden');
   }
@@ -590,6 +597,8 @@ function clearSemanticResults() {
   ui.exportTraining.disabled = true;
   ui.semanticLegend.innerHTML = '';
   ui.semanticLegend.classList.add('hidden');
+  state.selectedSemanticClass = null;
+  ui.semanticClassPanel?.classList.add('hidden');
   ui.semanticFilterActions?.classList.add('hidden');
   ui.semanticDiagnostics.classList.add('hidden');
   ui.semanticState.className = 'badge';
@@ -1012,16 +1021,33 @@ function finalizeCellSemanticStats() {
 }
 
 function applySemanticVisibility() {
+  const selected = state.selectedSemanticClass;
+
   state.semanticGroup.traverse(obj => {
     if (!obj.isMesh) return;
     const cls = obj.userData.semanticClass;
     if (!cls) return;
+
     obj.visible = state.semanticVisibility[cls] !== false;
+
+    if (obj.material) {
+      const dimmed = Boolean(selected && cls !== selected);
+      obj.material.transparent = dimmed;
+      obj.material.opacity = dimmed ? 0.14 : 1;
+      obj.material.depthWrite = !dimmed;
+      obj.material.needsUpdate = true;
+    }
   });
 
   ui.semanticLegend.querySelectorAll('input[data-semantic-class]').forEach(input => {
     input.checked = state.semanticVisibility[input.dataset.semanticClass] !== false;
   });
+
+  ui.semanticLegend.querySelectorAll('.semantic-toggle-item').forEach(row => {
+    row.classList.toggle('selected-class-row', row.dataset.semanticClass === selected);
+  });
+
+  updateSemanticClassPanel();
 }
 
 function setAllSemanticVisibility(visible) {
@@ -1030,19 +1056,180 @@ function setAllSemanticVisibility(visible) {
   setStatus(visible ? 'تم إظهار جميع الفئات الدلالية.' : 'تم إخفاء جميع الفئات الدلالية.');
 }
 
+function selectSemanticClass(key) {
+  if (!SEMANTIC_CLASSES[key] || !state.semanticReady) return;
+  state.selectedSemanticClass = key;
+  applySemanticVisibility();
+  setStatus(`تم تحديد جميع مثلثات فئة ${SEMANTIC_CLASSES[key].label}.`);
+}
+
+function soloSemanticClass(key) {
+  if (!SEMANTIC_CLASSES[key] || !state.semanticReady) return;
+  for (const cls of Object.keys(SEMANTIC_CLASSES)) state.semanticVisibility[cls] = cls === key;
+  state.selectedSemanticClass = key;
+  applySemanticVisibility();
+  setStatus(`وضع Solo: ${SEMANTIC_CLASSES[key].label} فقط.`);
+}
+
+function clearSemanticClassSelection() {
+  state.selectedSemanticClass = null;
+  applySemanticVisibility();
+  setStatus('تم إلغاء تحديد الفئة مع الإبقاء على حالة الإظهار الحالية.');
+}
+
+function classRegionStats(key) {
+  const regions = [];
+  for (const cell of state.cells.values()) {
+    const count = cell.semanticCounts?.[key] || 0;
+    if (!count) continue;
+    regions.push({
+      region_id: cell.id,
+      triangles: count,
+      share_of_region_percent: Number(((count / Math.max(cell.triangles, 1)) * 100).toFixed(3))
+    });
+  }
+  regions.sort((a, b) => b.triangles - a.triangles);
+  return regions;
+}
+
+function updateSemanticClassPanel() {
+  const key = state.selectedSemanticClass;
+  if (!key || !state.semanticReady) {
+    ui.semanticClassPanel?.classList.add('hidden');
+    return;
+  }
+
+  const meta = SEMANTIC_CLASSES[key];
+  const triangles = state.semanticSummary?.[key] || 0;
+  const regions = classRegionStats(key);
+
+  ui.semanticClassPanel?.classList.remove('hidden');
+  ui.selectedClassBadge.textContent = meta.label;
+  ui.classTriangles.textContent = formatNumber(triangles);
+  ui.classPercent.textContent = `${((triangles / Math.max(state.totalTriangles, 1)) * 100).toFixed(2)}%`;
+  ui.classRegions.textContent = formatNumber(regions.length);
+  ui.classVisibleState.textContent = state.semanticVisibility[key] !== false ? 'ظاهر' : 'مخفي';
+}
+
+function exportSelectedClassJSON() {
+  const key = state.selectedSemanticClass;
+  if (!key || !state.semanticReady) {
+    setStatus('حدد فئة دلالية أولًا.');
+    return;
+  }
+
+  const triangles = state.semanticSummary?.[key] || 0;
+  const payload = {
+    schema: 'gaza-3d-semantic-class/v1',
+    created_at: new Date().toISOString(),
+    app_version: APP_VERSION,
+    model: state.sourceName,
+    coordinate_system: 'local / ungeoreferenced',
+    semantic_method: state.semanticMethod,
+    class: key,
+    label_ar: SEMANTIC_CLASSES[key].label,
+    triangles,
+    share_of_model_percent: Number(((triangles / Math.max(state.totalTriangles, 1)) * 100).toFixed(5)),
+    regions: classRegionStats(key)
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `semantic_${key}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  setStatus(`تم تصدير بيانات فئة ${SEMANTIC_CLASSES[key].label} بصيغة JSON.`);
+}
+
+async function exportSelectedClassOBJ() {
+  const key = state.selectedSemanticClass;
+  if (!key || !state.semanticReady) {
+    setStatus('حدد فئة دلالية أولًا.');
+    return;
+  }
+
+  const meshes = state.semanticGroup.children.filter(obj => obj.isMesh && obj.userData.semanticClass === key);
+  if (!meshes.length) {
+    setStatus('لا توجد هندسة متاحة لهذه الفئة.');
+    return;
+  }
+
+  setStatus(`جاري تجهيز هندسة فئة ${SEMANTIC_CLASSES[key].label} بصيغة OBJ…`);
+  const lines = [
+    '# Gaza 3D GIS Lab semantic class export',
+    `# Version: ${APP_VERSION}`,
+    `# Class: ${key} / ${SEMANTIC_CLASSES[key].label}`,
+    '# Coordinate system: local / ungeoreferenced',
+    ''
+  ];
+
+  let vertexOffset = 1;
+  const v = new THREE.Vector3();
+
+  for (let meshIndex = 0; meshIndex < meshes.length; meshIndex++) {
+    const mesh = meshes[meshIndex];
+    const geometry = mesh.geometry;
+    const position = geometry.getAttribute('position');
+    const index = geometry.index;
+    if (!position || !index) continue;
+
+    const used = new Map();
+    const ordered = [];
+
+    for (let i = 0; i < index.count; i++) {
+      const oldIndex = index.getX(i);
+      if (!used.has(oldIndex)) {
+        used.set(oldIndex, vertexOffset + ordered.length);
+        ordered.push(oldIndex);
+      }
+    }
+
+    lines.push(`o ${key}_part_${meshIndex + 1}`);
+    for (const oldIndex of ordered) {
+      v.fromBufferAttribute(position, oldIndex).applyMatrix4(mesh.matrix);
+      lines.push(`v ${v.x.toFixed(6)} ${v.y.toFixed(6)} ${v.z.toFixed(6)}`);
+    }
+
+    for (let i = 0; i < index.count; i += 3) {
+      const a = used.get(index.getX(i));
+      const b = used.get(index.getX(i + 1));
+      const c = used.get(index.getX(i + 2));
+      lines.push(`f ${a} ${b} ${c}`);
+    }
+
+    vertexOffset += ordered.length;
+    lines.push('');
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `semantic_${key}.obj`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  setStatus(`تم تصدير هندسة فئة ${SEMANTIC_CLASSES[key].label} بصيغة OBJ.`);
+}
+
 function renderSemanticLegend(summary) {
   ui.semanticLegend.innerHTML = '';
   const total = Object.values(summary).reduce((a, b) => a + b, 0) || 1;
 
   for (const [key, meta] of Object.entries(SEMANTIC_CLASSES)) {
     const count = summary[key] || 0;
-    const row = document.createElement('label');
+    const row = document.createElement('div');
     row.className = 'semantic-item semantic-toggle-item';
+    row.dataset.semanticClass = key;
     row.innerHTML = `
-      <input type="checkbox" data-semantic-class="${key}" ${state.semanticVisibility[key] !== false ? 'checked' : ''}>
+      <input type="checkbox" data-semantic-class="${key}" ${state.semanticVisibility[key] !== false ? 'checked' : ''} aria-label="إظهار ${meta.label}">
       <i class="semantic-swatch" style="background:#${meta.color.toString(16).padStart(6, '0')}"></i>
       <span>${meta.label}</span>
       <strong>${((count / total) * 100).toFixed(1)}% · ${formatNumber(count)}</strong>
+      <div class="semantic-row-actions">
+        <button type="button" class="legend-action select-action">تحديد</button>
+        <button type="button" class="legend-action solo-action">Solo</button>
+      </div>
     `;
 
     const checkbox = row.querySelector('input');
@@ -1051,6 +1238,9 @@ function renderSemanticLegend(summary) {
       applySemanticVisibility();
       setStatus(`${meta.label}: ${checkbox.checked ? 'ظاهر' : 'مخفي'}.`);
     });
+
+    row.querySelector('.select-action').addEventListener('click', () => selectSemanticClass(key));
+    row.querySelector('.solo-action').addEventListener('click', () => soloSemanticClass(key));
 
     ui.semanticLegend.appendChild(row);
   }
@@ -1072,11 +1262,11 @@ async function runSemanticBaseline() {
   ui.exportTraining.disabled = true;
   ui.semanticBtn.disabled = true;
   ui.semanticState.className = 'badge running';
-  ui.semanticState.textContent = 'V4 يحلل';
+  ui.semanticState.textContent = 'V4.2 يحلل';
   ui.semanticProgressWrap.classList.remove('hidden');
   ui.semanticProgressBar.style.width = '0%';
   ui.semanticProgressLabel.textContent = '0%';
-  setStatus('V4: تقدير الأرض المحلية والخشونة والاتصال المكاني…');
+  setStatus('V4.2: تقدير الأرض المحلية والخشونة والاتصال المكاني…');
 
   for (const cell of state.cells.values()) {
     cell.semanticCounts = {};
@@ -1198,7 +1388,7 @@ async function runSemanticBaseline() {
 
   ui.semanticProgressBar.style.width = '74%';
   ui.semanticProgressLabel.textContent = '74%';
-  setStatus('V4: تنظيف البقع المعزولة وربط المكونات المكانية…');
+  setStatus('V4.2: تنظيف البقع المعزولة وربط المكونات المكانية…');
   await new Promise(resolve => setTimeout(resolve, 0));
 
   const buckets = sourceMeshes.map(() => Object.fromEntries(classKeys.map(k => [k, []])));
@@ -1286,7 +1476,7 @@ async function runSemanticBaseline() {
   ui.semanticProgressBar.style.width = '100%';
   ui.semanticProgressLabel.textContent = '100%';
   ui.semanticState.className = 'badge ready';
-  ui.semanticState.textContent = 'V4 جاهز';
+  ui.semanticState.textContent = 'V4.2 جاهز';
   ui.semanticBtn.disabled = false;
   ui.viewSemantic.disabled = false;
   ui.exportTraining.disabled = false;
@@ -1298,7 +1488,7 @@ async function runSemanticBaseline() {
 
   const manualCount = [...state.cells.values()].filter(c => c.manualLabel).length;
   const groundPct = ((summary.ground || 0) / Math.max(state.totalTriangles, 1) * 100).toFixed(1);
-  setStatus(`V4 اكتمل: أرض محلية + خشونة + Connected Components. الأرض المكتشفة ${groundPct}%، والتصحيحات اليدوية ${manualCount}.`);
+  setStatus(`V4.2 اكتمل: أرض محلية + خشونة + Connected Components. الأرض المكتشفة ${groundPct}%، والتصحيحات اليدوية ${manualCount}.`);
   setTimeout(() => ui.semanticProgressWrap.classList.add('hidden'), 1000);
 }
 
@@ -1389,6 +1579,16 @@ ui.applyManualLabel.addEventListener('click', applyManualTrainingLabel);
 ui.exportTraining.addEventListener('click', exportTrainingLabels);
 ui.showAllSemantic?.addEventListener('click', () => setAllSemanticVisibility(true));
 ui.hideAllSemantic?.addEventListener('click', () => setAllSemanticVisibility(false));
+ui.soloSelectedClass?.addEventListener('click', () => {
+  if (state.selectedSemanticClass) soloSemanticClass(state.selectedSemanticClass);
+});
+ui.restoreSemanticView?.addEventListener('click', () => {
+  setAllSemanticVisibility(true);
+  if (state.selectedSemanticClass) selectSemanticClass(state.selectedSemanticClass);
+});
+ui.exportClassJson?.addEventListener('click', exportSelectedClassJSON);
+ui.exportClassObj?.addEventListener('click', exportSelectedClassOBJ);
+ui.clearClassSelection?.addEventListener('click', clearSemanticClassSelection);
 ui.showGrid.addEventListener('change', () => { state.gridHelper.visible = (state.mode === 'segments' || state.mode === 'semantic') && ui.showGrid.checked; });
 ui.colorRegions.addEventListener('change', applyRegionColors);
 ui.clearSelected.addEventListener('click', clearSelection);
