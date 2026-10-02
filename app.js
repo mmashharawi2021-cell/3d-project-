@@ -1583,8 +1583,10 @@ ui.soloSelectedClass?.addEventListener('click', () => {
   if (state.selectedSemanticClass) soloSemanticClass(state.selectedSemanticClass);
 });
 ui.restoreSemanticView?.addEventListener('click', () => {
+  state.selectedSemanticClass = null;
   setAllSemanticVisibility(true);
-  if (state.selectedSemanticClass) selectSemanticClass(state.selectedSemanticClass);
+  ui.semanticClassPanel?.classList.add('hidden');
+  setStatus('تمت استعادة العرض الدلالي الكامل.');
 });
 ui.exportClassJson?.addEventListener('click', exportSelectedClassJSON);
 ui.exportClassObj?.addEventListener('click', exportSelectedClassOBJ);
