@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07131f" />
-  <title>Gaza 3D GIS Lab — V2</title>
+  <title>Gaza 3D GIS Lab — V3 Semantic</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -22,7 +22,7 @@
         <div class="brand-mark">G3</div>
         <div>
           <h1>Gaza 3D GIS Lab</h1>
-          <p>تقسيم مكاني تفاعلي لنموذج غزة ثلاثي الأبعاد</p>
+          <p>تحليل وتقسيم دلالي لنموذج غزة ثلاثي الأبعاد</p>
         </div>
       </div>
       <div class="top-actions">
@@ -75,6 +75,21 @@
           </div>
         </section>
 
+        <section id="semantic-panel">
+          <div class="section-title-row">
+            <h2>التحليل الدلالي</h2>
+            <span id="semantic-state" class="badge">لم يبدأ</span>
+          </div>
+          <p class="hint">Baseline هندسي لتوليد أول Labels من النموذج. ليس نموذج تعلم عميق بعد؛ التصحيحات اليدوية هنا ستصبح Dataset التدريب.</p>
+          <button id="semantic-btn" class="primary-btn" disabled>تشغيل التحليل الدلالي</button>
+          <div id="semantic-progress-wrap" class="progress-wrap hidden">
+            <div class="progress-track"><div id="semantic-progress-bar" class="progress-bar"></div></div>
+            <span id="semantic-progress-label">0%</span>
+          </div>
+          <div id="semantic-legend" class="semantic-legend hidden"></div>
+          <button id="export-training" class="secondary-btn" disabled>تصدير Training Labels</button>
+        </section>
+
         <section id="selection-panel" class="selection-panel muted">
           <div class="section-title-row">
             <h2>المنطقة المحددة</h2>
@@ -88,7 +103,26 @@
               <div><span>عرض المنطقة</span><strong id="sel-x">—</strong></div>
               <div><span>عمق المنطقة</span><strong id="sel-z">—</strong></div>
             </div>
+            <div id="auto-class-row" class="class-result hidden">
+              <span>التصنيف التلقائي</span>
+              <strong id="auto-class">—</strong>
+              <small id="auto-confidence">—</small>
+            </div>
+            <label class="field-label" for="manual-class">التصحيح اليدوي / Label التدريب</label>
+            <select id="manual-class" class="select">
+              <option value="">بدون تصحيح</option>
+              <option value="building">مبنى</option>
+              <option value="roof">سطح</option>
+              <option value="wall">جدار</option>
+              <option value="ground">أرض</option>
+              <option value="debris">ركام</option>
+              <option value="road">طريق</option>
+              <option value="water_tank">خزان مياه</option>
+              <option value="vegetation">نباتات</option>
+              <option value="other">أخرى</option>
+            </select>
             <div class="action-stack">
+              <button id="apply-manual-label" class="secondary-btn">حفظ التصحيح كـ Training Label</button>
               <button id="focus-selected" class="secondary-btn">تركيز الكاميرا</button>
               <button id="export-json" class="secondary-btn">تصدير بيانات المنطقة JSON</button>
               <button id="clear-selected" class="ghost-btn">إلغاء التحديد</button>
@@ -100,8 +134,8 @@
           <h2>مسار المشروع</h2>
           <ol>
             <li class="done">تحميل النموذج الحقيقي</li>
-            <li class="active">تقسيم وتحديد أجزاء الـMesh</li>
-            <li>AI Segmentation / Classification</li>
+            <li class="done">تقسيم وتحديد أجزاء الـMesh</li>
+            <li class="active">Semantic Baseline + Training Labels</li>
             <li>Georeferencing</li>
             <li>GIS Export</li>
           </ol>
@@ -119,6 +153,7 @@
         <div class="viewer-toolbar">
           <button id="view-original" class="tool active">الأصل</button>
           <button id="view-segments" class="tool" disabled>المناطق</button>
+          <button id="view-semantic" class="tool" disabled>دلالي</button>
           <button id="toggle-wireframe" class="tool">Wireframe</button>
         </div>
         <div id="status" class="status-pill">تحميل نموذج غزة…</div>
