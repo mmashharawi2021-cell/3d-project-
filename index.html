@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07131f" />
-  <title>Gaza 3D GIS Lab — V3 Semantic</title>
+  <title>Gaza 3D GIS Lab — V4 Enhanced Semantic</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -80,11 +80,20 @@
             <h2>التحليل الدلالي</h2>
             <span id="semantic-state" class="badge">لم يبدأ</span>
           </div>
-          <p class="hint">Baseline هندسي لتوليد أول Labels من النموذج. ليس نموذج تعلم عميق بعد؛ التصحيحات اليدوية هنا ستصبح Dataset التدريب.</p>
-          <button id="semantic-btn" class="primary-btn" disabled>تشغيل التحليل الدلالي</button>
+          <p class="hint">V4 يحسن الفصل هندسيًا باستخدام ارتفاع الأرض المحلي، اتجاه السطح، الخشونة المكانية، وتنظيف المكونات المتصلة. ما يزال Baseline وليس شبكة عصبية مدرّبة.</p>
+          <div class="method-chips">
+            <span>Local Ground</span><span>Normals</span><span>Roughness</span><span>Components</span>
+          </div>
+          <button id="semantic-btn" class="primary-btn" disabled>تشغيل التحليل الدلالي V4</button>
           <div id="semantic-progress-wrap" class="progress-wrap hidden">
             <div class="progress-track"><div id="semantic-progress-bar" class="progress-bar"></div></div>
             <span id="semantic-progress-label">0%</span>
+          </div>
+          <div id="semantic-diagnostics" class="semantic-diagnostics hidden">
+            <div><span>خلايا التحليل</span><strong id="diag-bins">—</strong></div>
+            <div><span>المكونات المتصلة</span><strong id="diag-components">—</strong></div>
+            <div><span>تنظيف الضوضاء</span><strong id="diag-cleaned">—</strong></div>
+            <div><span>متوسط الخشونة</span><strong id="diag-roughness">—</strong></div>
           </div>
           <div id="semantic-legend" class="semantic-legend hidden"></div>
           <button id="export-training" class="secondary-btn" disabled>تصدير Training Labels</button>
@@ -135,7 +144,7 @@
           <ol>
             <li class="done">تحميل النموذج الحقيقي</li>
             <li class="done">تقسيم وتحديد أجزاء الـMesh</li>
-            <li class="active">Semantic Baseline + Training Labels</li>
+            <li class="active">Enhanced Semantic V4 + Training Labels</li>
             <li>Georeferencing</li>
             <li>GIS Export</li>
           </ol>
