@@ -19,7 +19,10 @@ const ui = {
   semanticProgressLabel: $('semantic-progress-label'), semanticLegend: $('semantic-legend'),
   exportTraining: $('export-training'), manualClass: $('manual-class'),
   applyManualLabel: $('apply-manual-label'), autoClassRow: $('auto-class-row'),
-  autoClass: $('auto-class'), autoConfidence: $('auto-confidence')
+  autoClass: $('auto-class'), autoConfidence: $('auto-confidence'),
+  semanticDiagnostics: $('semantic-diagnostics'), diagBins: $('diag-bins'),
+  diagComponents: $('diag-components'), diagCleaned: $('diag-cleaned'),
+  diagRoughness: $('diag-roughness')
 };
 
 const state = {
@@ -41,7 +44,8 @@ const state = {
   sourceSize: 0,
   semanticReady: false,
   semanticSummary: null,
-  semanticMethod: 'geometry-baseline-v1'
+  semanticDiagnostics: null,
+  semanticMethod: 'enhanced-geometry-v4-local-ground-roughness-components'
 };
 
 const SEMANTIC_CLASSES = {
@@ -441,7 +445,7 @@ function selectCell(id) {
   if (cell.dominantClass) {
     ui.autoClassRow.classList.remove('hidden');
     ui.autoClass.textContent = SEMANTIC_CLASSES[cell.dominantClass]?.label || cell.dominantClass;
-    ui.autoConfidence.textContent = `ثقة هندسية تقريبية: ${(cell.confidence * 100).toFixed(1)}%`;
+    ui.autoConfidence.textContent = `ثقة V4 تقريبية: ${(cell.confidence * 100).toFixed(1)}%`;
   } else {
     ui.autoClassRow.classList.add('hidden');
   }
@@ -553,6 +557,8 @@ function clearSemanticResults() {
   ui.exportTraining.disabled = true;
   ui.semanticLegend.innerHTML = '';
   ui.semanticLegend.classList.add('hidden');
+  ui.semanticDiagnostics.classList.add('hidden');
+  state.semanticDiagnostics = null;
   ui.semanticState.className = 'badge';
   ui.semanticState.textContent = 'لم يبدأ';
   for (const cell of state.cells.values()) {
@@ -562,30 +568,209 @@ function clearSemanticResults() {
   }
 }
 
-function classifyTriangle(a, b, c) {
+function createAnalysisGrid() {
+  const size = state.modelBox.getSize(new THREE.Vector3());
+  const cols = 28;
+  const rows = THREE.MathUtils.clamp(Math.round(cols * (size.z / Math.max(size.x, 1e-8))), 20, 34);
+  const bins = Array.from({ length: cols * rows }, (_, index) => ({
+    index,
+    row: Math.floor(index / cols),
+    col: index % cols,
+    count: 0,
+    minY: Infinity,
+    maxY: -Infinity,
+    lowY: [],
+    normalSum: 0,
+    normalSq: 0,
+    roughness: 0,
+    rawGround: null,
+    groundY: null,
+    semanticCounts: {},
+    dominantClass: null,
+    totalClassified: 0,
+    overrideFrom: null,
+    overrideTo: null
+  }));
+  return {
+    cols, rows, bins,
+    minX: state.modelBox.min.x,
+    minZ: state.modelBox.min.z,
+    dx: Math.max(size.x, 1e-8),
+    dz: Math.max(size.z, 1e-8)
+  };
+}
+
+function analysisBinForPoint(point, grid) {
+  let col = Math.floor(((point.x - grid.minX) / grid.dx) * grid.cols);
+  let row = Math.floor(((point.z - grid.minZ) / grid.dz) * grid.rows);
+  col = THREE.MathUtils.clamp(col, 0, grid.cols - 1);
+  row = THREE.MathUtils.clamp(row, 0, grid.rows - 1);
+  return grid.bins[row * grid.cols + col];
+}
+
+function keepLowSample(arr, value, limit = 12) {
+  if (!Number.isFinite(value)) return;
+  if (arr.length < limit) {
+    arr.push(value);
+    for (let i = arr.length - 1; i > 0 && arr[i] < arr[i - 1]; i--) {
+      const t = arr[i]; arr[i] = arr[i - 1]; arr[i - 1] = t;
+    }
+    return;
+  }
+  if (value >= arr[arr.length - 1]) return;
+  arr[arr.length - 1] = value;
+  for (let i = arr.length - 1; i > 0 && arr[i] < arr[i - 1]; i--) {
+    const t = arr[i]; arr[i] = arr[i - 1]; arr[i - 1] = t;
+  }
+}
+
+function median(values) {
+  if (!values.length) return null;
+  const a = values.slice().sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+function prepareAnalysisGrid(grid) {
+  const modelHeight = Math.max(state.modelBox.max.y - state.modelBox.min.y, 1e-8);
+  const fallback = state.modelBox.min.y + modelHeight * 0.025;
+
+  for (const bin of grid.bins) {
+    if (bin.count > 0) {
+      const n = Math.min(bin.lowY.length, 5);
+      bin.rawGround = n
+        ? bin.lowY.slice(0, n).reduce((s, y) => s + y, 0) / n
+        : (Number.isFinite(bin.minY) ? bin.minY : fallback);
+      const mean = bin.normalSum / bin.count;
+      bin.roughness = Math.sqrt(Math.max(0, bin.normalSq / bin.count - mean * mean));
+    }
+  }
+
+  for (const bin of grid.bins) {
+    const neighbors = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const r = bin.row + dr, c = bin.col + dc;
+        if (r < 0 || r >= grid.rows || c < 0 || c >= grid.cols) continue;
+        const candidate = grid.bins[r * grid.cols + c];
+        if (candidate.rawGround != null) neighbors.push(candidate.rawGround);
+      }
+    }
+    bin.groundY = median(neighbors) ?? bin.rawGround ?? fallback;
+  }
+}
+
+function triangleFeatures(a, b, c, grid) {
   tempEdge1.subVectors(b, a);
   tempEdge2.subVectors(c, a);
   tempNormal.crossVectors(tempEdge1, tempEdge2);
-  const lenSq = tempNormal.lengthSq();
-  if (lenSq < 1e-12) return 'other';
-  tempNormal.normalize();
-
+  const area2 = tempNormal.length();
   tempCentroid.copy(a).add(b).add(c).multiplyScalar(1 / 3);
-  const height = Math.max(state.modelBox.max.y - state.modelBox.min.y, 1e-8);
-  const yNorm = THREE.MathUtils.clamp((tempCentroid.y - state.modelBox.min.y) / height, 0, 1);
-  const horizontal = Math.abs(tempNormal.y);
+  const bin = analysisBinForPoint(tempCentroid, grid);
+  if (area2 < 1e-10) return { cls: 'other', bin, horizontal: 0, localHeight: 0 };
+  tempNormal.multiplyScalar(1 / area2);
 
-  if (horizontal >= 0.80) {
-    if (yNorm <= 0.20) return 'ground';
-    if (yNorm >= 0.27) return 'roof';
-    return 'other';
+  const horizontal = Math.abs(tempNormal.y);
+  const modelHeight = Math.max(state.modelBox.max.y - state.modelBox.min.y, 1e-8);
+  const groundTol = Math.max(modelHeight * 0.045, 0.35);
+  const localHeight = tempCentroid.y - bin.groundY;
+  const rough = bin.roughness;
+
+  let cls = 'other';
+
+  if (localHeight <= groundTol) {
+    if (horizontal <= 0.25 && localHeight > groundTol * 0.12) cls = 'wall';
+    else if (rough >= 0.28 && horizontal < 0.68) cls = 'debris';
+    else cls = 'ground';
+  } else if (horizontal <= 0.30) {
+    cls = 'wall';
+  } else if (localHeight <= groundTol * 2.2 && rough >= 0.20 && horizontal < 0.76) {
+    cls = 'debris';
+  } else if (horizontal >= 0.76 && localHeight >= groundTol * 1.25) {
+    cls = 'roof';
+  } else if (horizontal >= 0.62 && localHeight >= groundTol * 1.8 && rough < 0.20) {
+    cls = 'roof';
+  } else if (horizontal < 0.58 && localHeight <= groundTol * 3.2) {
+    cls = 'debris';
+  } else if (horizontal <= 0.45) {
+    cls = 'wall';
   }
-  if (horizontal <= 0.34 && yNorm >= 0.12) return 'wall';
-  if (yNorm <= 0.48 && horizontal < 0.80) return 'debris';
-  return 'other';
+
+  return { cls, bin, horizontal, localHeight };
+}
+
+function computeSpatialComponents(grid) {
+  for (const bin of grid.bins) {
+    const entries = Object.entries(bin.semanticCounts || {}).sort((a, b) => b[1] - a[1]);
+    bin.totalClassified = entries.reduce((s, [, n]) => s + n, 0);
+    bin.dominantClass = entries[0]?.[0] || null;
+    bin.overrideFrom = null;
+    bin.overrideTo = null;
+  }
+
+  const visited = new Uint8Array(grid.bins.length);
+  const components = [];
+  const neighborIndices = (bin) => {
+    const out = [];
+    if (bin.row > 0) out.push((bin.row - 1) * grid.cols + bin.col);
+    if (bin.row + 1 < grid.rows) out.push((bin.row + 1) * grid.cols + bin.col);
+    if (bin.col > 0) out.push(bin.row * grid.cols + bin.col - 1);
+    if (bin.col + 1 < grid.cols) out.push(bin.row * grid.cols + bin.col + 1);
+    return out;
+  };
+
+  for (const seed of grid.bins) {
+    if (visited[seed.index] || !seed.dominantClass || seed.totalClassified === 0) continue;
+    const cls = seed.dominantClass;
+    const queue = [seed.index];
+    visited[seed.index] = 1;
+    const members = [];
+    let triangles = 0;
+
+    for (let q = 0; q < queue.length; q++) {
+      const idx = queue[q];
+      const bin = grid.bins[idx];
+      members.push(idx);
+      triangles += bin.totalClassified;
+      for (const ni of neighborIndices(bin)) {
+        const n = grid.bins[ni];
+        if (!visited[ni] && n.dominantClass === cls && n.totalClassified > 0) {
+          visited[ni] = 1;
+          queue.push(ni);
+        }
+      }
+    }
+    components.push({ cls, members, triangles });
+  }
+
+  let cleaned = 0;
+  const tinyThreshold = Math.max(550, Math.round(state.totalTriangles * 0.0015));
+
+  for (const comp of components) {
+    if (!(comp.members.length === 1 && comp.triangles < tinyThreshold)) continue;
+    const votes = {};
+    for (const idx of comp.members) {
+      const bin = grid.bins[idx];
+      for (const ni of neighborIndices(bin)) {
+        const n = grid.bins[ni];
+        if (!n.dominantClass || n.dominantClass === comp.cls) continue;
+        votes[n.dominantClass] = (votes[n.dominantClass] || 0) + n.totalClassified;
+      }
+    }
+    const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (!best) continue;
+    for (const idx of comp.members) {
+      grid.bins[idx].overrideFrom = comp.cls;
+      grid.bins[idx].overrideTo = best;
+    }
+    cleaned++;
+  }
+
+  return { components, cleaned };
 }
 
 function finalizeCellSemanticStats() {
+
   for (const cell of state.cells.values()) {
     const entries = Object.entries(cell.semanticCounts || {});
     const total = entries.reduce((sum, [, count]) => sum + count, 0);
@@ -619,7 +804,7 @@ function renderSemanticLegend(summary) {
 
 async function runSemanticBaseline() {
   if (!state.modelRoot || !state.segmented) {
-    setStatus('أنشئ التقسيم المكاني أولًا، ثم شغّل التحليل الدلالي.');
+    setStatus('أنشئ التقسيم المكاني أولًا، ثم شغّل التحليل الدلالي V4.');
     return;
   }
 
@@ -629,11 +814,12 @@ async function runSemanticBaseline() {
   ui.exportTraining.disabled = true;
   ui.semanticBtn.disabled = true;
   ui.semanticState.className = 'badge running';
-  ui.semanticState.textContent = 'جارٍ التحليل';
+  ui.semanticState.textContent = 'V4 جارٍ التحليل';
   ui.semanticProgressWrap.classList.remove('hidden');
   ui.semanticProgressBar.style.width = '0%';
   ui.semanticProgressLabel.textContent = '0%';
-  setStatus('تحليل اتجاهات المثلثات والارتفاعات لتوليد Semantic Labels أولية…');
+  ui.semanticDiagnostics.classList.add('hidden');
+  setStatus('V4: تقدير سطح الأرض المحلي وتحليل الخشونة والاتجاهات…');
 
   for (const cell of state.cells.values()) {
     cell.semanticCounts = {};
@@ -648,10 +834,93 @@ async function runSemanticBaseline() {
     if (obj.isMesh && obj.geometry?.getAttribute('position')) sourceMeshes.push(obj);
   });
 
+  const grid = createAnalysisGrid();
+  let processed = 0;
+
+  // Pass 1: local ground + normal roughness statistics.
+  for (const mesh of sourceMeshes) {
+    const geometry = mesh.geometry;
+    const pos = geometry.getAttribute('position');
+    const index = geometry.index;
+    const faceCount = index ? index.count / 3 : pos.count / 3;
+    const matrixWorld = mesh.matrixWorld.clone();
+
+    for (let f = 0; f < faceCount; f++) {
+      const ia = index ? index.getX(f * 3) : f * 3;
+      const ib = index ? index.getX(f * 3 + 1) : f * 3 + 1;
+      const ic = index ? index.getX(f * 3 + 2) : f * 3 + 2;
+
+      tempA.fromBufferAttribute(pos, ia).applyMatrix4(matrixWorld);
+      tempB.fromBufferAttribute(pos, ib).applyMatrix4(matrixWorld);
+      tempC.fromBufferAttribute(pos, ic).applyMatrix4(matrixWorld);
+      tempCentroid.copy(tempA).add(tempB).add(tempC).multiplyScalar(1 / 3);
+
+      tempEdge1.subVectors(tempB, tempA);
+      tempEdge2.subVectors(tempC, tempA);
+      tempNormal.crossVectors(tempEdge1, tempEdge2);
+      const nLen = tempNormal.length();
+      const horizontal = nLen > 1e-10 ? Math.abs(tempNormal.y / nLen) : 0;
+
+      const bin = analysisBinForPoint(tempCentroid, grid);
+      bin.count++;
+      bin.minY = Math.min(bin.minY, tempCentroid.y);
+      bin.maxY = Math.max(bin.maxY, tempCentroid.y);
+      bin.normalSum += horizontal;
+      bin.normalSq += horizontal * horizontal;
+      if (horizontal >= 0.40) keepLowSample(bin.lowY, tempCentroid.y);
+
+      processed++;
+      if (processed % 14000 === 0) {
+        const pct = Math.min(28, Math.round((processed / state.totalTriangles) * 28));
+        ui.semanticProgressBar.style.width = `${pct}%`;
+        ui.semanticProgressLabel.textContent = `${pct}%`;
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+  }
+
+  prepareAnalysisGrid(grid);
+  setStatus('V4: تصنيف أولي وحساب المكونات المكانية المتصلة…');
+
+  // Pass 2: classify into analysis bins to discover connected components.
+  processed = 0;
+  for (const mesh of sourceMeshes) {
+    const geometry = mesh.geometry;
+    const pos = geometry.getAttribute('position');
+    const index = geometry.index;
+    const faceCount = index ? index.count / 3 : pos.count / 3;
+    const matrixWorld = mesh.matrixWorld.clone();
+
+    for (let f = 0; f < faceCount; f++) {
+      const ia = index ? index.getX(f * 3) : f * 3;
+      const ib = index ? index.getX(f * 3 + 1) : f * 3 + 1;
+      const ic = index ? index.getX(f * 3 + 2) : f * 3 + 2;
+
+      tempA.fromBufferAttribute(pos, ia).applyMatrix4(matrixWorld);
+      tempB.fromBufferAttribute(pos, ib).applyMatrix4(matrixWorld);
+      tempC.fromBufferAttribute(pos, ic).applyMatrix4(matrixWorld);
+
+      const feat = triangleFeatures(tempA, tempB, tempC, grid);
+      feat.bin.semanticCounts[feat.cls] = (feat.bin.semanticCounts[feat.cls] || 0) + 1;
+
+      processed++;
+      if (processed % 14000 === 0) {
+        const pct = 28 + Math.min(27, Math.round((processed / state.totalTriangles) * 27));
+        ui.semanticProgressBar.style.width = `${pct}%`;
+        ui.semanticProgressLabel.textContent = `${pct}%`;
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+  }
+
+  const componentResult = computeSpatialComponents(grid);
+  setStatus('V4: تطبيق تنظيف المكونات الصغيرة وبناء طبقات العرض الدلالي…');
+
+  // Pass 3: final labels + visual buckets + cell statistics.
   const classKeys = Object.keys(SEMANTIC_CLASSES);
   const buckets = sourceMeshes.map(() => Object.fromEntries(classKeys.map(k => [k, []])));
   const summary = Object.fromEntries(classKeys.map(k => [k, 0]));
-  let processed = 0;
+  processed = 0;
 
   for (let sourceIndex = 0; sourceIndex < sourceMeshes.length; sourceIndex++) {
     const mesh = sourceMeshes[sourceIndex];
@@ -670,7 +939,10 @@ async function runSemanticBaseline() {
       tempB.fromBufferAttribute(pos, ib).applyMatrix4(matrixWorld);
       tempC.fromBufferAttribute(pos, ic).applyMatrix4(matrixWorld);
 
-      const cls = classifyTriangle(tempA, tempB, tempC);
+      const feat = triangleFeatures(tempA, tempB, tempC, grid);
+      let cls = feat.cls;
+      if (feat.bin.overrideFrom === cls && feat.bin.overrideTo) cls = feat.bin.overrideTo;
+
       buckets[sourceIndex][cls].push(ia, ib, ic);
       summary[cls]++;
 
@@ -680,8 +952,8 @@ async function runSemanticBaseline() {
       if (cell) cell.semanticCounts[cls] = (cell.semanticCounts[cls] || 0) + 1;
 
       processed++;
-      if (processed % 16000 === 0) {
-        const pct = Math.min(94, Math.round((processed / state.totalTriangles) * 94));
+      if (processed % 14000 === 0) {
+        const pct = 55 + Math.min(37, Math.round((processed / state.totalTriangles) * 37));
         ui.semanticProgressBar.style.width = `${pct}%`;
         ui.semanticProgressLabel.textContent = `${pct}%`;
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -715,12 +987,32 @@ async function runSemanticBaseline() {
   }
 
   finalizeCellSemanticStats();
+
+  const activeBins = grid.bins.filter(b => b.count > 0);
+  const averageRoughness = activeBins.length
+    ? activeBins.reduce((s, b) => s + b.roughness, 0) / activeBins.length
+    : 0;
+
   state.semanticSummary = summary;
+  state.semanticDiagnostics = {
+    analysis_grid: `${grid.cols}x${grid.rows}`,
+    active_bins: activeBins.length,
+    connected_components: componentResult.components.length,
+    cleaned_components: componentResult.cleaned,
+    average_roughness: Number(averageRoughness.toFixed(4))
+  };
   state.semanticReady = true;
+
+  ui.diagBins.textContent = `${activeBins.length} / ${grid.bins.length}`;
+  ui.diagComponents.textContent = String(componentResult.components.length);
+  ui.diagCleaned.textContent = String(componentResult.cleaned);
+  ui.diagRoughness.textContent = averageRoughness.toFixed(3);
+  ui.semanticDiagnostics.classList.remove('hidden');
+
   ui.semanticProgressBar.style.width = '100%';
   ui.semanticProgressLabel.textContent = '100%';
   ui.semanticState.className = 'badge ready';
-  ui.semanticState.textContent = 'Baseline جاهز';
+  ui.semanticState.textContent = 'V4 جاهز';
   ui.semanticBtn.disabled = false;
   ui.viewSemantic.disabled = false;
   ui.exportTraining.disabled = false;
@@ -729,8 +1021,8 @@ async function runSemanticBaseline() {
 
   if (state.selectedCellId && state.cells.has(state.selectedCellId)) selectCell(state.selectedCellId);
 
-  const manualCount = [...state.cells.values()].filter(c => c.manualLabel).length;
-  setStatus(`اكتمل Semantic Baseline. راجع النتائج وصحح المناطق يدويًا لبناء Dataset التدريب. التصحيحات الحالية: ${manualCount}.`);
+  const manualCount = [...state.cells.values()].filter(cell => cell.manualLabel).length;
+  setStatus(`اكتمل V4: Ground محلي + Roughness + Connected Components. التصحيحات اليدوية الحالية: ${manualCount}.`);
   setTimeout(() => ui.semanticProgressWrap.classList.add('hidden'), 1000);
 }
 
@@ -776,7 +1068,7 @@ function exportTrainingLabels() {
     });
 
   const payload = {
-    schema: 'gaza-3d-training-labels/v1',
+    schema: 'gaza-3d-training-labels/v2',
     created_at: new Date().toISOString(),
     model: state.sourceName,
     coordinate_system: 'local / ungeoreferenced',
@@ -785,6 +1077,7 @@ function exportTrainingLabels() {
     grid: ui.gridPreset.value,
     total_triangles: state.totalTriangles,
     semantic_summary: state.semanticSummary,
+    semantic_diagnostics: state.semanticDiagnostics,
     manual_label_count: regions.filter(r => r.manual_label).length,
     regions
   };
