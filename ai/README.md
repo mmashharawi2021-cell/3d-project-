@@ -40,3 +40,18 @@ python ai/infer.py --data ai/work/gaza_dataset.npz --checkpoint ai/output/pointn
 ```
 
 GitHub Actions يقوم بنفس العملية تلقائيًا عند تحديث ملفات مسار AI.
+
+
+## Current trained baseline
+
+Latest automated run:
+
+- Framework: PyTorch
+- Model: PointNetSemanticSeg
+- Faces inferred: 472,965
+- Web display points: 220,000
+- Training sample accuracy after epoch 4: 91.0%
+- Agreement with V4 bootstrap labels: 77.6%
+- Mean inference confidence: 88.7%
+
+These numbers describe the current bootstrap-trained neural baseline. They are not a ground-truth accuracy score.
