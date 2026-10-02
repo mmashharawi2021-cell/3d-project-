@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const APP_VERSION = 'V4.2.0';
+const APP_VERSION = 'V5.0.0';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -32,7 +32,9 @@ const ui = {
   classRegions: $('class-regions'), classVisibleState: $('class-visible-state'),
   soloSelectedClass: $('solo-selected-class'), restoreSemanticView: $('restore-semantic-view'),
   exportClassJson: $('export-class-json'), exportClassObj: $('export-class-obj'),
-  clearClassSelection: $('clear-class-selection')
+  clearClassSelection: $('clear-class-selection'),
+  viewAi: $('view-ai'), aiState: $('ai-state'), aiModel: $('ai-model'),
+  aiPoints: $('ai-points'), aiAgreement: $('ai-agreement'), aiConfidence: $('ai-confidence')
 };
 
 if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
@@ -41,6 +43,7 @@ const state = {
   modelRoot: null,
   segmentGroup: new THREE.Group(),
   semanticGroup: new THREE.Group(),
+  aiGroup: new THREE.Group(),
   gridHelper: new THREE.Group(),
   highlightGroup: new THREE.Group(),
   modelBox: new THREE.Box3(),
@@ -58,6 +61,8 @@ const state = {
   semanticSummary: null,
   semanticDiagnostics: null,
   semanticMethod: 'enhanced-geometry-v4-local-ground-roughness-components',
+  aiReady: false,
+  aiMeta: null,
   selectedSemanticClass: null,
   semanticVisibility: {
     roof: true,
@@ -100,9 +105,10 @@ const dir = new THREE.DirectionalLight(0xffffff, 2.4);
 dir.position.set(12, 24, 10);
 scene.add(dir);
 
-scene.add(state.segmentGroup, state.semanticGroup, state.gridHelper, state.highlightGroup);
+scene.add(state.segmentGroup, state.semanticGroup, state.aiGroup, state.gridHelper, state.highlightGroup);
 state.segmentGroup.visible = false;
 state.semanticGroup.visible = false;
+state.aiGroup.visible = false;
 state.gridHelper.visible = false;
 
 const raycaster = new THREE.Raycaster();
@@ -140,6 +146,7 @@ async function loadDefaultModel() {
     const url = URL.createObjectURL(blob);
     await loadGLB(url, 'Gaza Strip 2014', blob.size);
     URL.revokeObjectURL(url);
+    await loadNeuralAIResult();
   } catch (err) {
     console.error(err);
     ui.modelState.className = 'badge';
@@ -196,6 +203,103 @@ async function loadGLB(url, name, size) {
   setStatus('النموذج جاهز. أنشئ التقسيم المكاني ثم اضغط على أي منطقة.');
 }
 
+function clearAIResult() {
+  disposeGroup(state.aiGroup, true);
+  state.aiGroup.visible = false;
+  state.aiReady = false;
+  state.aiMeta = null;
+  if (ui.viewAi) ui.viewAi.disabled = true;
+  if (ui.aiState) {
+    ui.aiState.className = 'badge';
+    ui.aiState.textContent = 'غير متاح';
+  }
+  if (ui.aiModel) ui.aiModel.textContent = '—';
+  if (ui.aiPoints) ui.aiPoints.textContent = '—';
+  if (ui.aiAgreement) ui.aiAgreement.textContent = '—';
+  if (ui.aiConfidence) ui.aiConfidence.textContent = '—';
+}
+
+async function loadNeuralAIResult() {
+  clearAIResult();
+  if (ui.aiState) {
+    ui.aiState.className = 'badge loading';
+    ui.aiState.textContent = 'جارٍ التحميل';
+  }
+
+  try {
+    const metaResponse = await fetch('./ai/output/gaza_ai_meta.json', { cache: 'no-store' });
+    if (!metaResponse.ok) throw new Error(`AI metadata HTTP ${metaResponse.status}`);
+    const meta = await metaResponse.json();
+
+    const [posResponse, labelResponse] = await Promise.all([
+      fetch('./ai/output/gaza_ai_points.f32', { cache: 'no-store' }),
+      fetch('./ai/output/gaza_ai_points_labels.u8', { cache: 'no-store' })
+    ]);
+    if (!posResponse.ok || !labelResponse.ok) throw new Error('AI binary result is incomplete');
+
+    const positions = new Float32Array(await posResponse.arrayBuffer());
+    const labels = new Uint8Array(await labelResponse.arrayBuffer());
+    const pointCount = Math.floor(positions.length / 3);
+    if (pointCount !== labels.length) {
+      throw new Error(`AI point/label mismatch: ${pointCount} vs ${labels.length}`);
+    }
+
+    const colors = new Float32Array(pointCount * 3);
+    const classKeys = meta.classes || Object.keys(SEMANTIC_CLASSES);
+    const color = new THREE.Color();
+
+    for (let i = 0; i < pointCount; i++) {
+      const key = classKeys[labels[i]] || 'other';
+      color.setHex(SEMANTIC_CLASSES[key]?.color ?? SEMANTIC_CLASSES.other.color);
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.computeBoundingSphere();
+
+    const material = new THREE.PointsMaterial({
+      size: Math.max((state.modelSphere.radius || 20) * 0.006, 0.035),
+      vertexColors: true,
+      sizeAttenuation: true,
+      transparent: false
+    });
+
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false;
+    points.userData.aiResult = true;
+    state.aiGroup.add(points);
+
+    state.aiMeta = meta;
+    state.aiReady = true;
+    state.aiGroup.visible = false;
+    ui.viewAi.disabled = false;
+
+    ui.aiState.className = 'badge ready';
+    ui.aiState.textContent = 'PointNet جاهز';
+    ui.aiModel.textContent = meta.model || 'PointNet';
+    ui.aiPoints.textContent = formatNumber(meta.display_point_count || pointCount);
+    ui.aiAgreement.textContent = meta.agreement_with_bootstrap_labels != null
+      ? `${(meta.agreement_with_bootstrap_labels * 100).toFixed(1)}%`
+      : '—';
+    ui.aiConfidence.textContent = meta.mean_confidence != null
+      ? `${(meta.mean_confidence * 100).toFixed(1)}%`
+      : '—';
+
+    setStatus('تم تحميل نتيجة PointNet العصبية. استخدم تبويب AI لعرضها.');
+  } catch (err) {
+    console.warn('Neural AI result is not available yet:', err);
+    if (ui.aiState) {
+      ui.aiState.className = 'badge';
+      ui.aiState.textContent = 'قيد التدريب';
+    }
+    if (ui.viewAi) ui.viewAi.disabled = true;
+  }
+}
+
 function calculateModelStats() {
   let triangles = 0;
   let meshes = 0;
@@ -215,6 +319,7 @@ function calculateModelStats() {
 }
 
 function clearCurrentModel() {
+  clearAIResult();
   clearSemanticResults();
   clearSegments();
   clearSelection();
@@ -418,15 +523,18 @@ function setViewMode(mode) {
   state.mode = mode;
   const seg = mode === 'segments' && state.segmented;
   const sem = mode === 'semantic' && state.semanticReady;
-  const original = !seg && !sem;
+  const ai = mode === 'ai' && state.aiReady;
+  const original = !seg && !sem && !ai;
   if (state.modelRoot) state.modelRoot.visible = original;
   state.segmentGroup.visible = seg;
   state.semanticGroup.visible = sem;
+  state.aiGroup.visible = ai;
   state.gridHelper.visible = (seg || sem) && ui.showGrid.checked;
   state.highlightGroup.visible = seg || sem;
   ui.viewOriginal.classList.toggle('active', original);
   ui.viewSegments.classList.toggle('active', seg);
   ui.viewSemantic.classList.toggle('active', sem);
+  ui.viewAi?.classList.toggle('active', ai);
 }
 
 function clearSelection() {
@@ -1574,6 +1682,7 @@ ui.segmentBtn.addEventListener('click', buildSegments);
 ui.viewOriginal.addEventListener('click', () => setViewMode('original'));
 ui.viewSegments.addEventListener('click', () => setViewMode('segments'));
 ui.viewSemantic.addEventListener('click', () => setViewMode('semantic'));
+ui.viewAi?.addEventListener('click', () => setViewMode('ai'));
 ui.semanticBtn.addEventListener('click', runSemanticBaseline);
 ui.applyManualLabel.addEventListener('click', applyManualTrainingLabel);
 ui.exportTraining.addEventListener('click', exportTrainingLabels);
