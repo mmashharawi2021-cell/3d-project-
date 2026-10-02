@@ -187,7 +187,7 @@ def pseudo_labels_v4(centers: np.ndarray, normals: np.ndarray, bbox_min: np.ndar
         "p35": p35,
         "p50": p50,
         "plane": plane.tolist(),
-    }
+    }, rel_h.astype(np.float32), cell_rough.astype(np.float32), is_ground_cell.astype(np.float32)
 
 
 def main():
@@ -208,8 +208,19 @@ def main():
     scale = float(np.max(bbox_max - bbox_min))
     xyz_norm = (centers - center) / max(scale, 1e-8)
 
-    labels, diagnostics = pseudo_labels_v4(centers, normals, bbox_min, bbox_max)
-    features = np.concatenate([xyz_norm, normals], axis=1).astype(np.float32)
+    labels, diagnostics, rel_h, local_roughness, ground_flag = pseudo_labels_v4(
+        centers, normals, bbox_min, bbox_max
+    )
+    # 9 neural features:
+    # normalized XYZ (3), face normal XYZ (3), relative height (1),
+    # local roughness (1), connected-ground flag (1).
+    features = np.concatenate([
+        xyz_norm,
+        normals,
+        (rel_h / max(scale, 1e-8))[:, None],
+        local_roughness[:, None],
+        ground_flag[:, None],
+    ], axis=1).astype(np.float32)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -230,6 +241,11 @@ def main():
         "normalization_center": center.tolist(),
         "normalization_scale": scale,
         "pseudo_label_method": "v4-local-ground-bootstrap",
+        "feature_channels": [
+            "x_norm", "y_norm", "z_norm",
+            "normal_x", "normal_y", "normal_z",
+            "relative_height_norm", "local_roughness", "ground_mask"
+        ],
         "diagnostics": diagnostics,
     }
     Path(args.meta).write_text(json.dumps(meta, indent=2), encoding="utf-8")
