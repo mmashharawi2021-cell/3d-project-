@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const APP_VERSION = 'V5.0.0';
+const APP_VERSION = 'V5.1.0';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -34,7 +34,12 @@ const ui = {
   exportClassJson: $('export-class-json'), exportClassObj: $('export-class-obj'),
   clearClassSelection: $('clear-class-selection'),
   viewAi: $('view-ai'), aiState: $('ai-state'), aiModel: $('ai-model'),
-  aiPoints: $('ai-points'), aiAgreement: $('ai-agreement'), aiConfidence: $('ai-confidence')
+  aiPoints: $('ai-points'), aiAgreement: $('ai-agreement'), aiConfidence: $('ai-confidence'),
+  gtMode: $('gt-mode'), gtClass: $('gt-class'), gtRadius: $('gt-radius'),
+  gtCountBadge: $('gt-count-badge'), gtCount: $('gt-count'),
+  gtTrainedCount: $('gt-trained-count'), gtValidation: $('gt-validation'),
+  gtLast: $('gt-last'), gtUndo: $('gt-undo'), gtExport: $('gt-export'),
+  gtImport: $('gt-import'), gtClear: $('gt-clear')
 };
 
 if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
@@ -63,6 +68,14 @@ const state = {
   semanticMethod: 'enhanced-geometry-v4-local-ground-roughness-components',
   aiReady: false,
   aiMeta: null,
+  aiPointsObject: null,
+  aiDisplayPositions: null,
+  aiDisplayLabels: null,
+  aiFaceIndices: null,
+  aiClassKeys: [],
+  aiCorrections: new Map(),
+  aiCorrectionHistory: [],
+  aiCorrectionMode: false,
   selectedSemanticClass: null,
   semanticVisibility: {
     roof: true,
@@ -208,6 +221,15 @@ function clearAIResult() {
   state.aiGroup.visible = false;
   state.aiReady = false;
   state.aiMeta = null;
+  state.aiPointsObject = null;
+  state.aiDisplayPositions = null;
+  state.aiDisplayLabels = null;
+  state.aiFaceIndices = null;
+  state.aiClassKeys = [];
+  state.aiCorrectionMode = false;
+  state.aiCorrectionHistory = [];
+  controls.enabled = true;
+  if (ui.gtMode) ui.gtMode.checked = false;
   if (ui.viewAi) ui.viewAi.disabled = true;
   if (ui.aiState) {
     ui.aiState.className = 'badge';
@@ -217,6 +239,213 @@ function clearAIResult() {
   if (ui.aiPoints) ui.aiPoints.textContent = '—';
   if (ui.aiAgreement) ui.aiAgreement.textContent = '—';
   if (ui.aiConfidence) ui.aiConfidence.textContent = '—';
+  updateGroundTruthUI();
+}
+
+const GT_STORAGE_KEY = 'gaza3d_ground_truth_v1';
+
+function classColorForName(name, corrected = false) {
+  const color = new THREE.Color(SEMANTIC_CLASSES[name]?.color ?? SEMANTIC_CLASSES.other.color);
+  if (corrected) color.lerp(new THREE.Color(0xffffff), 0.28);
+  return color;
+}
+
+function updateGroundTruthUI() {
+  const count = state.aiCorrections?.size || 0;
+  if (ui.gtCountBadge) ui.gtCountBadge.textContent = `${formatNumber(count)} مثلث`;
+  if (ui.gtCount) ui.gtCount.textContent = formatNumber(count);
+  if (ui.gtUndo) ui.gtUndo.disabled = !state.aiCorrectionHistory.length;
+  if (ui.gtExport) ui.gtExport.disabled = !count;
+  if (ui.gtClear) ui.gtClear.disabled = !count;
+
+  const trained = state.aiMeta?.manual_ground_truth_total || 0;
+  if (ui.gtTrainedCount) ui.gtTrainedCount.textContent = formatNumber(trained);
+
+  const validation = state.aiMeta?.manual_ground_truth_validation;
+  if (ui.gtValidation) {
+    ui.gtValidation.textContent = validation?.accuracy != null
+      ? `${(validation.accuracy * 100).toFixed(1)}% / ${formatNumber(validation.count)}`
+      : '—';
+  }
+}
+
+function saveGroundTruthLocal() {
+  try {
+    const payload = [...state.aiCorrections.entries()].map(([face_index, label]) => ({ face_index, label }));
+    localStorage.setItem(GT_STORAGE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Unable to persist ground truth locally:', err);
+  }
+}
+
+function loadGroundTruthLocal() {
+  state.aiCorrections.clear();
+  try {
+    const raw = localStorage.getItem(GT_STORAGE_KEY);
+    if (!raw) {
+      updateGroundTruthUI();
+      return;
+    }
+    const items = JSON.parse(raw);
+    for (const item of Array.isArray(items) ? items : []) {
+      const faceIndex = Number(item.face_index);
+      const label = String(item.label || '');
+      if (Number.isInteger(faceIndex) && faceIndex >= 0 && SEMANTIC_CLASSES[label]) {
+        state.aiCorrections.set(faceIndex, label);
+      }
+    }
+  } catch (err) {
+    console.warn('Unable to load local ground truth:', err);
+  }
+  refreshAICorrectionColors();
+  updateGroundTruthUI();
+}
+
+function refreshAICorrectionColors() {
+  const points = state.aiPointsObject;
+  if (!points || !state.aiFaceIndices || !state.aiDisplayLabels) return;
+  const colorAttr = points.geometry.getAttribute('color');
+  if (!colorAttr) return;
+
+  for (let i = 0; i < state.aiFaceIndices.length; i++) {
+    const faceIndex = state.aiFaceIndices[i];
+    const corrected = state.aiCorrections.get(faceIndex);
+    const className = corrected || state.aiClassKeys[state.aiDisplayLabels[i]] || 'other';
+    const color = classColorForName(className, Boolean(corrected));
+    colorAttr.setXYZ(i, color.r, color.g, color.b);
+  }
+  colorAttr.needsUpdate = true;
+}
+
+function setAIPointColor(pointIndex, label, corrected = true) {
+  const points = state.aiPointsObject;
+  if (!points) return;
+  const colorAttr = points.geometry.getAttribute('color');
+  if (!colorAttr) return;
+  const color = classColorForName(label, corrected);
+  colorAttr.setXYZ(pointIndex, color.r, color.g, color.b);
+  colorAttr.needsUpdate = true;
+}
+
+function applyGroundTruthFromPointer() {
+  if (!state.aiPointsObject || !state.aiFaceIndices) return;
+
+  const radius = Math.max(0, Number(ui.gtRadius?.value || 0));
+  raycaster.params.Points.threshold = Math.max(radius || 0.10, 0.08);
+  const hits = raycaster.intersectObject(state.aiPointsObject, false);
+  if (!hits.length || hits[0].index == null) {
+    setStatus('لم يتم التقاط نقطة AI. قرّب أكثر ثم اضغط على النقطة المراد تصحيحها.');
+    return;
+  }
+
+  const centerIndex = hits[0].index;
+  const label = ui.gtClass?.value || 'other';
+  const position = state.aiPointsObject.geometry.getAttribute('position');
+  const affected = [];
+
+  if (radius <= 0) {
+    affected.push(centerIndex);
+  } else {
+    const cx = position.getX(centerIndex);
+    const cy = position.getY(centerIndex);
+    const cz = position.getZ(centerIndex);
+    const r2 = radius * radius;
+
+    for (let i = 0; i < position.count; i++) {
+      const dx = position.getX(i) - cx;
+      const dy = position.getY(i) - cy;
+      const dz = position.getZ(i) - cz;
+      if (dx * dx + dy * dy + dz * dz <= r2) affected.push(i);
+    }
+  }
+
+  const history = [];
+  let changed = 0;
+  for (const pointIndex of affected) {
+    const faceIndex = Number(state.aiFaceIndices[pointIndex]);
+    const previous = state.aiCorrections.has(faceIndex) ? state.aiCorrections.get(faceIndex) : null;
+    if (previous === label) continue;
+    history.push({ faceIndex, previous });
+    state.aiCorrections.set(faceIndex, label);
+    setAIPointColor(pointIndex, label, true);
+    changed++;
+  }
+
+  if (!changed) {
+    setStatus('هذه النقاط تحمل بالفعل نفس Ground Truth.');
+    return;
+  }
+
+  state.aiCorrectionHistory.push(history);
+  if (ui.gtLast) ui.gtLast.textContent = `${SEMANTIC_CLASSES[label]?.label || label} · ${formatNumber(changed)}`;
+  saveGroundTruthLocal();
+  updateGroundTruthUI();
+  setStatus(`تم تصحيح ${formatNumber(changed)} مثلث إلى «${SEMANTIC_CLASSES[label]?.label || label}».`);
+}
+
+function undoGroundTruth() {
+  const history = state.aiCorrectionHistory.pop();
+  if (!history) return;
+
+  for (const item of history) {
+    if (item.previous == null) state.aiCorrections.delete(item.faceIndex);
+    else state.aiCorrections.set(item.faceIndex, item.previous);
+  }
+
+  refreshAICorrectionColors();
+  saveGroundTruthLocal();
+  updateGroundTruthUI();
+  if (ui.gtLast) ui.gtLast.textContent = 'تراجع';
+  setStatus('تم التراجع عن آخر تصحيح Ground Truth.');
+}
+
+function exportGroundTruth() {
+  if (!state.aiCorrections.size) return;
+
+  const corrections = [...state.aiCorrections.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([face_index, label]) => ({ face_index, label, source: 'human' }));
+
+  const payload = {
+    schema: 'gaza-3d-ground-truth/v1',
+    created_at: new Date().toISOString(),
+    app_version: APP_VERSION,
+    model: state.sourceName,
+    classes: state.aiClassKeys,
+    correction_count: corrections.length,
+    corrections
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'manual_corrections.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  setStatus('تم تصدير Ground Truth. ارفعه إلى ai/ground_truth/manual_corrections.json لإعادة تدريب PointNet تلقائيًا.');
+}
+
+async function importGroundTruthFile(file) {
+  const payload = JSON.parse(await file.text());
+  if (payload?.schema !== 'gaza-3d-ground-truth/v1' || !Array.isArray(payload.corrections)) {
+    throw new Error('Unsupported Ground Truth schema');
+  }
+
+  state.aiCorrections.clear();
+  for (const item of payload.corrections) {
+    const faceIndex = Number(item.face_index);
+    const label = String(item.label || '');
+    if (Number.isInteger(faceIndex) && faceIndex >= 0 && SEMANTIC_CLASSES[label]) {
+      state.aiCorrections.set(faceIndex, label);
+    }
+  }
+
+  state.aiCorrectionHistory = [];
+  refreshAICorrectionColors();
+  saveGroundTruthLocal();
+  updateGroundTruthUI();
+  if (ui.gtLast) ui.gtLast.textContent = 'استيراد';
+  setStatus(`تم استيراد ${formatNumber(state.aiCorrections.size)} تصحيح Ground Truth.`);
 }
 
 async function loadNeuralAIResult() {
@@ -231,17 +460,19 @@ async function loadNeuralAIResult() {
     if (!metaResponse.ok) throw new Error(`AI metadata HTTP ${metaResponse.status}`);
     const meta = await metaResponse.json();
 
-    const [posResponse, labelResponse] = await Promise.all([
+    const [posResponse, labelResponse, faceIndexResponse] = await Promise.all([
       fetch('./ai/output/gaza_ai_points.f32', { cache: 'no-store' }),
-      fetch('./ai/output/gaza_ai_points_labels.u8', { cache: 'no-store' })
+      fetch('./ai/output/gaza_ai_points_labels.u8', { cache: 'no-store' }),
+      fetch('./ai/output/gaza_ai_points_face_index.u32', { cache: 'no-store' })
     ]);
-    if (!posResponse.ok || !labelResponse.ok) throw new Error('AI binary result is incomplete');
+    if (!posResponse.ok || !labelResponse.ok || !faceIndexResponse.ok) throw new Error('AI binary result is incomplete');
 
     const positions = new Float32Array(await posResponse.arrayBuffer());
     const labels = new Uint8Array(await labelResponse.arrayBuffer());
+    const faceIndices = new Uint32Array(await faceIndexResponse.arrayBuffer());
     const pointCount = Math.floor(positions.length / 3);
-    if (pointCount !== labels.length) {
-      throw new Error(`AI point/label mismatch: ${pointCount} vs ${labels.length}`);
+    if (pointCount !== labels.length || pointCount !== faceIndices.length) {
+      throw new Error(`AI point/label/index mismatch: ${pointCount} / ${labels.length} / ${faceIndices.length}`);
     }
 
     const colors = new Float32Array(pointCount * 3);
@@ -275,6 +506,11 @@ async function loadNeuralAIResult() {
 
     state.aiMeta = meta;
     state.aiReady = true;
+    state.aiPointsObject = points;
+    state.aiDisplayPositions = positions;
+    state.aiDisplayLabels = labels;
+    state.aiFaceIndices = faceIndices;
+    state.aiClassKeys = classKeys;
     state.aiGroup.visible = false;
     ui.viewAi.disabled = false;
 
@@ -289,7 +525,9 @@ async function loadNeuralAIResult() {
       ? `${(meta.mean_confidence * 100).toFixed(1)}%`
       : '—';
 
-    setStatus('تم تحميل نتيجة PointNet العصبية. استخدم تبويب AI لعرضها.');
+    loadGroundTruthLocal();
+    updateGroundTruthUI();
+    setStatus('تم تحميل نتيجة PointNet العصبية. استخدم تبويب AI، ويمكنك الآن إنشاء Ground Truth على مستوى المثلثات.');
   } catch (err) {
     console.warn('Neural AI result is not available yet:', err);
     if (ui.aiState) {
@@ -340,7 +578,7 @@ function disposeGroup(group, disposeSharedGeometry = false) {
   while (group.children.length) {
     const child = group.children.pop();
     child.traverse?.(obj => {
-      if (obj.isMesh || obj.isLineSegments) {
+      if (obj.isMesh || obj.isLineSegments || obj.isPoints) {
         if (disposeSharedGeometry) obj.geometry?.dispose?.();
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
         for (const m of mats) m?.dispose?.();
@@ -531,6 +769,7 @@ function setViewMode(mode) {
   state.aiGroup.visible = ai;
   state.gridHelper.visible = (seg || sem) && ui.showGrid.checked;
   state.highlightGroup.visible = seg || sem;
+  controls.enabled = !(ai && state.aiCorrectionMode);
   ui.viewOriginal.classList.toggle('active', original);
   ui.viewSegments.classList.toggle('active', seg);
   ui.viewSemantic.classList.toggle('active', sem);
@@ -596,11 +835,18 @@ function cellIdFromPoint(point) {
 }
 
 function onPointerDown(event) {
-  if (!state.segmented || (state.mode !== 'segments' && state.mode !== 'semantic')) return;
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
+
+  if (state.mode === 'ai' && state.aiReady && state.aiCorrectionMode) {
+    event.preventDefault();
+    applyGroundTruthFromPointer();
+    return;
+  }
+
+  if (!state.segmented || (state.mode !== 'segments' && state.mode !== 'semantic')) return;
 
   if (state.mode === 'segments') {
     const hits = raycaster.intersectObjects(state.segmentGroup.children, false);
@@ -1683,6 +1929,39 @@ ui.viewOriginal.addEventListener('click', () => setViewMode('original'));
 ui.viewSegments.addEventListener('click', () => setViewMode('segments'));
 ui.viewSemantic.addEventListener('click', () => setViewMode('semantic'));
 ui.viewAi?.addEventListener('click', () => setViewMode('ai'));
+ui.gtMode?.addEventListener('change', () => {
+  state.aiCorrectionMode = Boolean(ui.gtMode.checked);
+  if (state.aiCorrectionMode) {
+    setViewMode('ai');
+    controls.enabled = false;
+    setStatus('وضع Ground Truth مفعّل: اضغط على نقاط AI لتصحيحها. أوقف الوضع للعودة للدوران والتحريك.');
+  } else {
+    controls.enabled = true;
+    setStatus('تم إيقاف وضع التصحيح. يمكنك تحريك الكاميرا مجددًا.');
+  }
+});
+ui.gtUndo?.addEventListener('click', undoGroundTruth);
+ui.gtExport?.addEventListener('click', exportGroundTruth);
+ui.gtClear?.addEventListener('click', () => {
+  state.aiCorrections.clear();
+  state.aiCorrectionHistory = [];
+  refreshAICorrectionColors();
+  saveGroundTruthLocal();
+  updateGroundTruthUI();
+  if (ui.gtLast) ui.gtLast.textContent = '—';
+  setStatus('تم مسح التصحيحات المحلية فقط.');
+});
+ui.gtImport?.addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  try { await importGroundTruthFile(file); }
+  catch (err) {
+    console.error(err);
+    setStatus('تعذر قراءة ملف Ground Truth.');
+  } finally {
+    e.target.value = '';
+  }
+});
 ui.semanticBtn.addEventListener('click', runSemanticBaseline);
 ui.applyManualLabel.addEventListener('click', applyManualTrainingLabel);
 ui.exportTraining.addEventListener('click', exportTrainingLabels);
