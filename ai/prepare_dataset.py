@@ -201,8 +201,9 @@ def main():
     centers = np.asarray(mesh.triangles_center, dtype=np.float32)
     normals = np.asarray(mesh.face_normals, dtype=np.float32)
 
-    bbox_min = centers.min(axis=0)
-    bbox_max = centers.max(axis=0)
+    # Use mesh vertex bounds so centering matches Three.js Box3.setFromObject().
+    bbox_min = np.asarray(mesh.bounds[0], dtype=np.float32)
+    bbox_max = np.asarray(mesh.bounds[1], dtype=np.float32)
     center = (bbox_min + bbox_max) / 2.0
     scale = float(np.max(bbox_max - bbox_min))
     xyz_norm = (centers - center) / max(scale, 1e-8)
