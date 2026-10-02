@@ -1,4 +1,4 @@
-# Gaza 3D GIS Lab — V2
+# Gaza 3D GIS Lab — V3 Semantic
 
 مختبر ويب عربي لمعالجة وعرض نموذج **Gaza Strip 2014** ثلاثي الأبعاد، مع Spatial Pre-Segmentation هندسي تمهيدًا لإضافة AI Segmentation وGIS لاحقًا.
 
@@ -12,6 +12,13 @@
 - تلوين المناطق وWireframe.
 - تصدير Metadata للمنطقة المحددة بصيغة JSON.
 - واجهة عربية RTL ومتجاوبة.
+- Semantic Baseline هندسي للمثلثات: سطح / جدار / أرض / ركام / أخرى.
+- عرض دلالي ملون مستقل داخل العارض.
+- حساب التصنيف الغالب والثقة التقريبية لكل منطقة.
+- تصحيح يدوي للـLabels على مستوى المنطقة.
+- تصدير `gaza_3d_training_labels.json` لبناء Dataset تدريب مخصص.
+
+> ملاحظة: الـSemantic Baseline الحالي ليس شبكة عصبية مدرّبة. هو مولّد Labels أولية هندسيًا لتسريع بناء بيانات التدريب، مع حفظ التصحيحات اليدوية.
 
 ## نموذج Gaza Strip 2014
 
@@ -49,4 +56,4 @@
 
 ## المرحلة التالية
 
-Semantic AI Segmentation → Georeferencing → GIS Export.
+تجميع وتصحيح Training Labels → تدريب نموذج 3D Semantic Segmentation فعلي → Georeferencing → GIS Export.
