@@ -558,6 +558,7 @@ function clearSemanticResults() {
   ui.exportTraining.disabled = true;
   ui.semanticLegend.innerHTML = '';
   ui.semanticLegend.classList.add('hidden');
+  ui.semanticDiagnostics.classList.add('hidden');
   ui.semanticState.className = 'badge';
   ui.semanticState.textContent = 'لم يبدأ';
   for (const cell of state.cells.values()) {
@@ -838,6 +839,14 @@ async function buildLocalSurfaceContext(sourceMeshes) {
       : planeY;
   }
 
+  let roughnessSum = 0;
+  let roughnessCount = 0;
+  for (let i = 0; i < fineCount; i++) {
+    if (!counts[i]) continue;
+    roughnessSum += roughness[i];
+    roughnessCount++;
+  }
+
   return {
     cols: fineCols,
     rows: fineRows,
@@ -853,6 +862,7 @@ async function buildLocalSurfaceContext(sourceMeshes) {
       finite_cells: finiteLows.length,
       ground_seed_cells: seedIndices.length,
       ground_components: components.length,
+      average_roughness: roughnessCount ? roughnessSum / roughnessCount : 0,
       ground_reference_p35: p35,
       ground_reference_p50: p50,
       plane: { a: plane[0], b: plane[1], c: plane[2] }
@@ -1201,6 +1211,12 @@ async function runSemanticBaseline() {
     removed_small_components: cleanup.removedComponents
   };
   state.semanticReady = true;
+
+  ui.diagBins.textContent = `${surface.diagnostics.finite_cells} / ${surface.cols * surface.rows}`;
+  ui.diagComponents.textContent = String(surface.diagnostics.ground_components);
+  ui.diagCleaned.textContent = String(cleanup.removedComponents);
+  ui.diagRoughness.textContent = Number(surface.diagnostics.average_roughness || 0).toFixed(3);
+  ui.semanticDiagnostics.classList.remove('hidden');
 
   ui.semanticProgressBar.style.width = '100%';
   ui.semanticProgressLabel.textContent = '100%';
