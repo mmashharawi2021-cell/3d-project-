@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07131f" />
-  <title>Gaza 3D GIS Lab — V5 Neural AI</title>
+  <title>Gaza 3D GIS Lab — V5.1 Ground Truth</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -139,6 +139,51 @@
             <div><span>الاتفاق مع Bootstrap</span><strong id="ai-agreement">—</strong></div>
             <div><span>متوسط الثقة</span><strong id="ai-confidence">—</strong></div>
           </div>
+
+          <div class="ground-truth-box">
+            <div class="section-title-row">
+              <h3>Ground Truth البشري</h3>
+              <span id="gt-count-badge" class="badge">0 مثلث</span>
+            </div>
+            <p class="hint">كل نقطة AI مرتبطة برقم مثلث حقيقي. فعّل وضع التصحيح، اختر الفئة، ثم اضغط على النقطة أو استخدم فرشاة صغيرة.</p>
+
+            <label class="gt-toggle">
+              <input id="gt-mode" type="checkbox" />
+              <span>تفعيل وضع التصحيح</span>
+            </label>
+
+            <label class="field-label" for="gt-class">الفئة الصحيحة</label>
+            <select id="gt-class" class="select">
+              <option value="roof">سطح</option>
+              <option value="wall">جدار</option>
+              <option value="ground">أرض</option>
+              <option value="debris">ركام</option>
+              <option value="other">أخرى</option>
+            </select>
+
+            <label class="field-label" for="gt-radius">نطاق التصحيح</label>
+            <select id="gt-radius" class="select">
+              <option value="0">مثلث واحد</option>
+              <option value="0.20">فرشاة 0.20 وحدة</option>
+              <option value="0.40">فرشاة 0.40 وحدة</option>
+              <option value="0.75">فرشاة 0.75 وحدة</option>
+            </select>
+
+            <div class="stats-grid compact">
+              <div><span>التصحيحات المحلية</span><strong id="gt-count">0</strong></div>
+              <div><span>Ground Truth بالتدريب</span><strong id="gt-trained-count">0</strong></div>
+              <div><span>Validation حقيقي</span><strong id="gt-validation">—</strong></div>
+              <div><span>آخر تصحيح</span><strong id="gt-last">—</strong></div>
+            </div>
+
+            <div class="action-stack">
+              <button id="gt-undo" class="secondary-btn" disabled>تراجع عن آخر تصحيح</button>
+              <button id="gt-export" class="secondary-btn" disabled>تصدير Ground Truth للتدريب</button>
+              <label class="file-btn gt-import-label" for="gt-import">استيراد Ground Truth سابق</label>
+              <input id="gt-import" type="file" accept=".json,application/json" hidden />
+              <button id="gt-clear" class="ghost-btn" disabled>مسح التصحيحات المحلية</button>
+            </div>
+          </div>
         </section>
 
         <section id="selection-panel" class="selection-panel muted">
@@ -187,7 +232,8 @@
             <li class="done">تحميل النموذج الحقيقي</li>
             <li class="done">تقسيم وتحديد أجزاء الـMesh</li>
             <li class="done">Enhanced Semantic V4.2 + Training Bootstrap</li>
-            <li class="active">PointNet Neural AI</li>
+            <li class="done">PointNet Neural AI</li>
+            <li class="active">Human Ground Truth + Retraining</li>
             <li>Georeferencing</li>
             <li>GIS Export</li>
           </ol>
