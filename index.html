@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07131f" />
-  <title>Gaza 3D GIS Lab — V4.2 Semantic Class Tools</title>
+  <title>Gaza 3D GIS Lab — V5 Neural AI</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -127,6 +127,20 @@
           <button id="export-training" class="secondary-btn" disabled>تصدير Training Labels</button>
         </section>
 
+        <section id="ai-panel">
+          <div class="section-title-row">
+            <h2>AI العصبي</h2>
+            <span id="ai-state" class="badge">جارٍ التحقق</span>
+          </div>
+          <p class="hint">PointNet Semantic Segmentation فعلي بـPyTorch. النتيجة العصبية مستقلة عن عرض V4.2 الهندسي.</p>
+          <div class="stats-grid compact">
+            <div><span>النموذج</span><strong id="ai-model">—</strong></div>
+            <div><span>نقاط العرض</span><strong id="ai-points">—</strong></div>
+            <div><span>الاتفاق مع Bootstrap</span><strong id="ai-agreement">—</strong></div>
+            <div><span>متوسط الثقة</span><strong id="ai-confidence">—</strong></div>
+          </div>
+        </section>
+
         <section id="selection-panel" class="selection-panel muted">
           <div class="section-title-row">
             <h2>المنطقة المحددة</h2>
@@ -172,7 +186,8 @@
           <ol>
             <li class="done">تحميل النموذج الحقيقي</li>
             <li class="done">تقسيم وتحديد أجزاء الـMesh</li>
-            <li class="active">Enhanced Semantic V4.2 + Class Tools</li>
+            <li class="done">Enhanced Semantic V4.2 + Training Bootstrap</li>
+            <li class="active">PointNet Neural AI</li>
             <li>Georeferencing</li>
             <li>GIS Export</li>
           </ol>
@@ -191,6 +206,7 @@
           <button id="view-original" class="tool active">الأصل</button>
           <button id="view-segments" class="tool" disabled>المناطق</button>
           <button id="view-semantic" class="tool" disabled>دلالي</button>
+          <button id="view-ai" class="tool" disabled>AI</button>
           <button id="toggle-wireframe" class="tool">Wireframe</button>
         </div>
         <div id="status" class="status-pill">تحميل نموذج غزة…</div>
