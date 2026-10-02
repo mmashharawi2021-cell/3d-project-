@@ -86,5 +86,6 @@ jobs:
             echo "No AI output changes to commit"
           else
             git commit -m "Update Gaza PointNet AI outputs [skip ai]"
-            git push
+            git pull --rebase origin main
+            git push origin HEAD:main
           fi
