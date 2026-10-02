@@ -9,6 +9,7 @@ on:
       - 'ai/train.py'
       - 'ai/infer.py'
       - 'ai/requirements.txt'
+      - 'ai/ground_truth/manual_corrections.json'
       - '.github/workflows/ai-pipeline.yml'
   workflow_dispatch:
 
@@ -59,6 +60,7 @@ jobs:
             --data work/gaza_dataset.npz \
             --out output/pointnet_gaza.pt \
             --report output/training_report.json \
+            --ground-truth ground_truth/manual_corrections.json \
             --epochs 4 \
             --steps 70 \
             --block-size 2048 \
