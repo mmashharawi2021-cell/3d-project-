@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07131f" />
-  <title>Gaza 3D GIS Lab — V4 Enhanced Semantic</title>
+  <title>Gaza 3D GIS Lab — V4.1 Semantic Filters</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -94,9 +94,13 @@
           </div>
           <div id="semantic-diagnostics" class="semantic-diagnostics hidden">
             <div><span>خلايا التحليل</span><strong id="diag-bins">—</strong></div>
-            <div><span>المكونات المتصلة</span><strong id="diag-components">—</strong></div>
+            <div><span>مكونات الأرض المتصلة</span><strong id="diag-components">—</strong></div>
             <div><span>تنظيف الضوضاء</span><strong id="diag-cleaned">—</strong></div>
             <div><span>متوسط الخشونة</span><strong id="diag-roughness">—</strong></div>
+          </div>
+          <div id="semantic-filter-actions" class="semantic-filter-actions hidden">
+            <button id="show-all-semantic" class="mini-btn">إظهار الكل</button>
+            <button id="hide-all-semantic" class="mini-btn">إخفاء الكل</button>
           </div>
           <div id="semantic-legend" class="semantic-legend hidden"></div>
           <button id="export-training" class="secondary-btn" disabled>تصدير Training Labels</button>
