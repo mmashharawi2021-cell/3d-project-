@@ -1,0 +1,6 @@
+{
+  "schema": "gaza-3d-ground-truth/v1",
+  "model": "Gaza Strip 2014",
+  "classes": ["roof", "wall", "ground", "debris", "other"],
+  "corrections": []
+}
