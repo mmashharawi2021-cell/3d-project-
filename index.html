@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07131f" />
-  <title>Gaza 3D GIS Lab — V4.1 Semantic Filters</title>
+  <title>Gaza 3D GIS Lab — V4.2 Semantic Class Tools</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -83,11 +83,11 @@
             <h2>التحليل الدلالي</h2>
             <span id="semantic-state" class="badge">لم يبدأ</span>
           </div>
-          <p class="hint">V4 يحسن الفصل هندسيًا باستخدام ارتفاع الأرض المحلي، اتجاه السطح، الخشونة المكانية، وتنظيف المكونات المتصلة. ما يزال Baseline وليس شبكة عصبية مدرّبة.</p>
+          <p class="hint">V4.2 يضيف فوق التحليل الدلالي أدوات تحديد وعزل كل فئة، إحصاءات مستقلة، وتصدير الفئة المختارة. ما يزال Baseline هندسيًا وليس شبكة عصبية مدرّبة.</p>
           <div class="method-chips">
             <span>Local Ground</span><span>Normals</span><span>Roughness</span><span>Components</span>
           </div>
-          <button id="semantic-btn" class="primary-btn" disabled>تشغيل التحليل الدلالي V4</button>
+          <button id="semantic-btn" class="primary-btn" disabled>تشغيل التحليل الدلالي V4.2</button>
           <div id="semantic-progress-wrap" class="progress-wrap hidden">
             <div class="progress-track"><div id="semantic-progress-bar" class="progress-bar"></div></div>
             <span id="semantic-progress-label">0%</span>
@@ -103,6 +103,27 @@
             <button id="hide-all-semantic" class="mini-btn">إخفاء الكل</button>
           </div>
           <div id="semantic-legend" class="semantic-legend hidden"></div>
+
+          <div id="semantic-class-panel" class="semantic-class-panel hidden">
+            <div class="section-title-row">
+              <h3>الفئة المحددة</h3>
+              <span id="selected-class-badge" class="badge">لا يوجد</span>
+            </div>
+            <div class="stats-grid compact">
+              <div><span>المثلثات</span><strong id="class-triangles">—</strong></div>
+              <div><span>نسبة النموذج</span><strong id="class-percent">—</strong></div>
+              <div><span>المناطق</span><strong id="class-regions">—</strong></div>
+              <div><span>الحالة</span><strong id="class-visible-state">—</strong></div>
+            </div>
+            <div class="action-stack">
+              <button id="solo-selected-class" class="secondary-btn">عزل الفئة Solo</button>
+              <button id="restore-semantic-view" class="secondary-btn">إظهار كل الفئات</button>
+              <button id="export-class-json" class="secondary-btn">تصدير بيانات الفئة JSON</button>
+              <button id="export-class-obj" class="secondary-btn">تصدير هندسة الفئة OBJ</button>
+              <button id="clear-class-selection" class="ghost-btn">إلغاء تحديد الفئة</button>
+            </div>
+          </div>
+
           <button id="export-training" class="secondary-btn" disabled>تصدير Training Labels</button>
         </section>
 
@@ -151,7 +172,7 @@
           <ol>
             <li class="done">تحميل النموذج الحقيقي</li>
             <li class="done">تقسيم وتحديد أجزاء الـMesh</li>
-            <li class="active">Enhanced Semantic V4 + Training Labels</li>
+            <li class="active">Enhanced Semantic V4.2 + Class Tools</li>
             <li>Georeferencing</li>
             <li>GIS Export</li>
           </ol>
