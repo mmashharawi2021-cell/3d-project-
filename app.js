@@ -116,6 +116,18 @@ async function loadGLB(url, name, size) {
   state.sourceSize = size || 0;
   scene.add(state.modelRoot);
 
+  state.modelRoot.traverse(obj => {
+    if (!obj.isMesh) return;
+    obj.frustumCulled = false;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const mat of mats) {
+      if (!mat) continue;
+      mat.side = THREE.DoubleSide;
+      if (mat.color) mat.color.set(0xffffff);
+      mat.needsUpdate = true;
+    }
+  });
+
   state.modelRoot.updateMatrixWorld(true);
   const rawBox = new THREE.Box3().setFromObject(state.modelRoot);
   const center = rawBox.getCenter(new THREE.Vector3());
@@ -126,6 +138,8 @@ async function loadGLB(url, name, size) {
   state.modelBox.getBoundingSphere(state.modelSphere);
   calculateModelStats();
   fitCameraToBox(state.modelBox);
+  requestAnimationFrame(() => fitCameraToBox(state.modelBox));
+  setTimeout(() => fitCameraToBox(state.modelBox), 350);
 
   ui.modelState.className = 'badge ready';
   ui.modelState.textContent = 'جاهز';
@@ -401,20 +415,30 @@ function onPointerDown(event) {
   if (hits.length) selectCell(hits[0].object.userData.cellId);
 }
 
-function fitCameraToBox(box, padding = 1.35) {
+function fitCameraToBox(box, padding = 1.18) {
   if (!box || box.isEmpty()) return;
+
   const center = box.getCenter(new THREE.Vector3());
-  const size = box.getSize(new THREE.Vector3());
-  const maxSize = Math.max(size.x, size.y, size.z);
-  const fitHeightDistance = maxSize / (2 * Math.atan(Math.PI * camera.fov / 360));
-  const fitWidthDistance = fitHeightDistance / camera.aspect;
-  const distance = padding * Math.max(fitHeightDistance, fitWidthDistance);
-  const direction = new THREE.Vector3(1, .82, 1).normalize();
-  camera.position.copy(center).add(direction.multiplyScalar(distance));
-  controls.target.copy(center);
-  camera.near = Math.max(distance / 1000, .005);
-  camera.far = distance * 20;
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const radius = Math.max(sphere.radius, 0.001);
+
+  const vFov = THREE.MathUtils.degToRad(camera.fov);
+  const safeAspect = Math.max(camera.aspect, 0.05);
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * safeAspect);
+  const limitingFov = Math.max(Math.min(vFov, hFov), THREE.MathUtils.degToRad(8));
+  const distance = (radius / Math.sin(limitingFov / 2)) * padding;
+
+  const direction = new THREE.Vector3(0.78, 0.92, 1).normalize();
+  camera.up.set(0, 1, 0);
+  camera.position.copy(center).addScaledVector(direction, distance);
+  camera.near = Math.max(distance - radius * 2.5, 0.01);
+  camera.far = distance + radius * 8;
   camera.updateProjectionMatrix();
+  camera.lookAt(center);
+
+  controls.target.copy(center);
+  controls.minDistance = radius * 0.15;
+  controls.maxDistance = distance * 5;
   controls.update();
 }
 
