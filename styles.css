@@ -210,3 +210,36 @@ h1 { margin: 0; font-size: 17px; letter-spacing: .2px; }
 .semantic-class-panel .action-stack {
   margin-top: 10px;
 }
+
+
+/* V5.1 Human Ground Truth */
+.ground-truth-box {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(111,227,182,.20);
+  border-radius: 14px;
+  background: rgba(111,227,182,.035);
+}
+.ground-truth-box h3 { margin: 0; font-size: 13px; }
+.gt-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(111,227,182,.16);
+  background: rgba(111,227,182,.055);
+  color: #dff9ef;
+  font-size: 11px;
+}
+.gt-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #6fe3b6;
+}
+.gt-import-label {
+  width: 100%;
+  min-height: 38px;
+  font-size: 11px;
+}
