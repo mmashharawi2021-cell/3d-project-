@@ -32,13 +32,12 @@ def main():
     d = np.load(args.data)
     features = d["features"].astype(np.float32)
     labels = d["labels"].astype(np.int64)
-    n_classes = int(labels.max()) + 1
+    n_classes = 5
 
     counts = np.bincount(labels, minlength=n_classes).astype(np.float64)
     class_weights = counts.sum() / np.maximum(counts, 1)
     class_weights = class_weights / class_weights.mean()
-    sampling_weights = class_weights[labels]
-    sampling_weights = sampling_weights / sampling_weights.sum()
+    class_indices = [np.flatnonzero(labels == c) for c in range(n_classes)]
 
     model = PointNetSemanticSeg(in_channels=features.shape[1], num_classes=n_classes)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
@@ -55,12 +54,17 @@ def main():
         for _ in range(args.steps):
             batches_x, batches_y = [], []
             for _b in range(args.batch_size):
-                idx = np.random.choice(
-                    len(labels),
-                    size=args.block_size,
-                    replace=True,
-                    p=sampling_weights,
-                )
+                pieces = []
+                base = args.block_size // n_classes
+                remainder = args.block_size - base * n_classes
+                for cls, pool in enumerate(class_indices):
+                    take = base + (1 if cls < remainder else 0)
+                    if len(pool):
+                        pieces.append(np.random.choice(pool, size=take, replace=len(pool) < take))
+                    else:
+                        pieces.append(np.random.choice(len(labels), size=take, replace=True))
+                idx = np.concatenate(pieces)
+                np.random.shuffle(idx)
                 batches_x.append(features[idx])
                 batches_y.append(labels[idx])
 
