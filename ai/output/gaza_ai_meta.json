@@ -12,14 +12,14 @@
   "full_face_count": 472965,
   "display_point_count": 220000,
   "counts": {
-    "roof": 121573,
-    "wall": 112167,
-    "ground": 14307,
-    "debris": 104624,
-    "other": 120294
+    "roof": 84805,
+    "wall": 109075,
+    "ground": 119751,
+    "debris": 56457,
+    "other": 102877
   },
-  "agreement_with_bootstrap_labels": 0.5942025308426627,
-  "mean_confidence": 0.8573969006538391,
+  "agreement_with_bootstrap_labels": 0.7759939953273498,
+  "mean_confidence": 0.8868059515953064,
   "files": {
     "full_labels": "gaza_ai_labels.u8",
     "full_confidence": "gaza_ai_confidence.f16",

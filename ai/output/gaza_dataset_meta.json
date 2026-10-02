@@ -21,6 +21,17 @@
   ],
   "normalization_scale": 29.609285354614258,
   "pseudo_label_method": "v4-local-ground-bootstrap",
+  "feature_channels": [
+    "x_norm",
+    "y_norm",
+    "z_norm",
+    "normal_x",
+    "normal_y",
+    "normal_z",
+    "relative_height_norm",
+    "local_roughness",
+    "ground_mask"
+  ],
   "diagnostics": {
     "grid": "30x30",
     "ground_seed_cells": 483,
