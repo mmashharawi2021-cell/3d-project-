@@ -243,3 +243,59 @@ h1 { margin: 0; font-size: 17px; letter-spacing: .2px; }
   min-height: 38px;
   font-size: 11px;
 }
+
+
+/* V5.2 Engineering analysis */
+#engineering-panel .action-stack { margin-top: 10px; }
+#analysis-state { color: var(--cyan); }
+.measurement-current {
+  margin: 10px 0;
+  padding: 11px;
+  border: 1px solid rgba(92,215,255,.22);
+  border-radius: 13px;
+  background: rgba(92,215,255,.055);
+  display: grid;
+  gap: 4px;
+}
+.measurement-current span { color: var(--muted); font-size: 10px; }
+.measurement-current strong { color: #ecfbff; font-size: 15px; direction: ltr; text-align: right; }
+.measurement-current small { color: #9cc9db; font-size: 9px; direction: ltr; text-align: right; line-height: 1.55; }
+.measurement-history { display: grid; gap: 7px; margin-top: 10px; }
+.measurement-empty {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+  padding: 8px 0;
+}
+.measurement-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 7px;
+  align-items: center;
+  padding: 8px 9px;
+  border-radius: 11px;
+  border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.03);
+}
+.measurement-row b {
+  min-width: 31px;
+  color: #9eeaff;
+  font-size: 10px;
+  direction: ltr;
+}
+.measurement-row span { color: #e4f7ff; font-size: 10px; direction: ltr; }
+.measurement-row small { color: var(--muted); font-size: 9px; direction: ltr; white-space: nowrap; }
+.measure-active {
+  box-shadow: inset 0 0 0 1px rgba(92,215,255,.22), 0 0 0 2px rgba(92,215,255,.07);
+}
+.viewer-toolbar .tool.measure-active {
+  background: rgba(92,215,255,.22);
+  color: #fff;
+}
+@media (max-width: 900px) {
+  .viewer-toolbar {
+    max-width: calc(100% - 28px);
+    flex-wrap: wrap;
+  }
+  .tool { padding: 7px 8px; font-size: 10px; }
+}
