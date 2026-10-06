@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const APP_VERSION = 'V5.1.0';
+const APP_VERSION = 'V5.2.0';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -39,7 +39,14 @@ const ui = {
   gtCountBadge: $('gt-count-badge'), gtCount: $('gt-count'),
   gtTrainedCount: $('gt-trained-count'), gtValidation: $('gt-validation'),
   gtLast: $('gt-last'), gtUndo: $('gt-undo'), gtExport: $('gt-export'),
-  gtImport: $('gt-import'), gtClear: $('gt-clear')
+  gtImport: $('gt-import'), gtClear: $('gt-clear'),
+  analysisState: $('analysis-state'), dimY: $('dim-y'), planEnvelope: $('plan-envelope'),
+  modelDiagonal: $('model-diagonal'), measurementCount: $('measurement-count'),
+  measureMode: $('measure-mode'), measureTool: $('measure-tool'),
+  clearMeasurements: $('clear-measurements'), exportAnalysisReport: $('export-analysis-report'),
+  measurementCurrent: $('measurement-current'), measurementStep: $('measurement-step'),
+  measurementValue: $('measurement-value'), measurementDetails: $('measurement-details'),
+  measurementHistory: $('measurement-history')
 };
 
 if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
@@ -51,6 +58,7 @@ const state = {
   aiGroup: new THREE.Group(),
   gridHelper: new THREE.Group(),
   highlightGroup: new THREE.Group(),
+  measurementGroup: new THREE.Group(),
   modelBox: new THREE.Box3(),
   modelSphere: new THREE.Sphere(),
   totalTriangles: 0,
@@ -83,7 +91,11 @@ const state = {
     ground: true,
     debris: true,
     other: true
-  }
+  },
+  measurements: [],
+  measureMode: false,
+  measurePointA: null,
+  measureDraftMarker: null
 };
 
 const SEMANTIC_CLASSES = {
@@ -118,7 +130,7 @@ const dir = new THREE.DirectionalLight(0xffffff, 2.4);
 dir.position.set(12, 24, 10);
 scene.add(dir);
 
-scene.add(state.segmentGroup, state.semanticGroup, state.aiGroup, state.gridHelper, state.highlightGroup);
+scene.add(state.segmentGroup, state.semanticGroup, state.aiGroup, state.gridHelper, state.highlightGroup, state.measurementGroup);
 state.segmentGroup.visible = false;
 state.semanticGroup.visible = false;
 state.aiGroup.visible = false;
@@ -211,6 +223,10 @@ async function loadGLB(url, name, size) {
   ui.modelState.textContent = 'جاهز';
   ui.segmentBtn.disabled = false;
   ui.semanticBtn.disabled = true;
+  if (ui.measureMode) ui.measureMode.disabled = false;
+  if (ui.measureTool) ui.measureTool.disabled = false;
+  if (ui.exportAnalysisReport) ui.exportAnalysisReport.disabled = false;
+  if (ui.analysisState) { ui.analysisState.className = 'badge ready'; ui.analysisState.textContent = 'جاهز'; }
   ui.modelName.textContent = name.replace(/\.(glb|gltf)$/i, '');
   ui.modelSize.textContent = state.sourceSize ? `${(state.sourceSize / 1024 / 1024).toFixed(1)} MB` : 'ملف محلي';
   setStatus('النموذج جاهز. أنشئ التقسيم المكاني ثم اضغط على أي منطقة.');
@@ -554,9 +570,13 @@ function calculateModelStats() {
   ui.meshes.textContent = formatNumber(meshes);
   ui.dimX.textContent = formatDim(size.x);
   ui.dimZ.textContent = formatDim(size.z);
+  if (ui.dimY) ui.dimY.textContent = formatDim(size.y);
+  if (ui.planEnvelope) ui.planEnvelope.textContent = `${(size.x * size.z).toFixed(2)} وحدة²`;
+  if (ui.modelDiagonal) ui.modelDiagonal.textContent = formatDim(size.length());
 }
 
 function clearCurrentModel() {
+  clearMeasurements();
   clearAIResult();
   clearSemanticResults();
   clearSegments();
@@ -769,7 +789,7 @@ function setViewMode(mode) {
   state.aiGroup.visible = ai;
   state.gridHelper.visible = (seg || sem) && ui.showGrid.checked;
   state.highlightGroup.visible = seg || sem;
-  controls.enabled = !(ai && state.aiCorrectionMode);
+  controls.enabled = !state.measureMode && !(ai && state.aiCorrectionMode);
   ui.viewOriginal.classList.toggle('active', original);
   ui.viewSegments.classList.toggle('active', seg);
   ui.viewSemantic.classList.toggle('active', sem);
@@ -840,6 +860,12 @@ function onPointerDown(event) {
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
 
+  if (state.measureMode) {
+    event.preventDefault();
+    applyMeasurementFromPointer();
+    return;
+  }
+
   if (state.mode === 'ai' && state.aiReady && state.aiCorrectionMode) {
     event.preventDefault();
     applyGroundTruthFromPointer();
@@ -905,6 +931,262 @@ function fitCameraToBox(box, padding = 1.18) {
   controls.update();
 
   updateCameraClipping();
+}
+
+
+function formatMeasure(n) {
+  return `${Number(n || 0).toFixed(3)} وحدة`;
+}
+
+function makeMeasurementMarker(point, draft = false) {
+  const radius = Math.max((state.modelSphere.radius || 1) * 0.007, 0.012);
+  const geometry = new THREE.SphereGeometry(radius, 12, 8);
+  const material = new THREE.MeshBasicMaterial({
+    color: draft ? 0xffc86b : 0x5cd7ff,
+    depthTest: false,
+    transparent: true,
+    opacity: 0.95
+  });
+  const marker = new THREE.Mesh(geometry, material);
+  marker.position.copy(point);
+  marker.renderOrder = 30;
+  state.measurementGroup.add(marker);
+  return marker;
+}
+
+function removeDraftMeasurementMarker() {
+  const marker = state.measureDraftMarker;
+  if (!marker) return;
+  state.measurementGroup.remove(marker);
+  marker.geometry?.dispose?.();
+  marker.material?.dispose?.();
+  state.measureDraftMarker = null;
+}
+
+function renderMeasurementHistory() {
+  if (!ui.measurementHistory) return;
+  if (ui.measurementCount) ui.measurementCount.textContent = formatNumber(state.measurements.length);
+  if (ui.clearMeasurements) ui.clearMeasurements.disabled = state.measurements.length === 0;
+
+  if (!state.measurements.length) {
+    ui.measurementHistory.innerHTML = '<div class="measurement-empty">لا توجد قياسات محفوظة بعد.</div>';
+    return;
+  }
+
+  ui.measurementHistory.innerHTML = state.measurements.slice().reverse().map(item => `
+    <div class="measurement-row">
+      <b>${item.id}</b>
+      <span>${formatMeasure(item.distance3d)}</span>
+      <small>H ${item.horizontal.toFixed(3)} · ΔY ${item.deltaY.toFixed(3)}</small>
+    </div>
+  `).join('');
+}
+
+function setMeasurementMode(enabled) {
+  if (!state.modelRoot && enabled) return;
+  state.measureMode = Boolean(enabled);
+  state.measurePointA = null;
+  removeDraftMeasurementMarker();
+
+  ui.measureMode?.classList.toggle('measure-active', state.measureMode);
+  ui.measureTool?.classList.toggle('measure-active', state.measureMode);
+  if (ui.measureMode) ui.measureMode.textContent = state.measureMode ? 'إنهاء وضع القياس' : 'بدء قياس نقطتين';
+
+  if (ui.measurementCurrent) {
+    ui.measurementCurrent.classList.toggle('hidden', !state.measureMode);
+  }
+  if (ui.measurementStep) ui.measurementStep.textContent = 'اختر النقطة الأولى من سطح النموذج';
+  if (ui.measurementValue) ui.measurementValue.textContent = '—';
+  if (ui.measurementDetails) ui.measurementDetails.textContent = 'المسافة 3D · المسافة الأفقية · فرق الارتفاع';
+
+  controls.enabled = !state.measureMode && !(state.mode === 'ai' && state.aiCorrectionMode);
+  renderer.domElement.style.cursor = state.measureMode ? 'crosshair' : '';
+
+  if (state.measureMode) {
+    if (state.aiCorrectionMode && ui.gtMode) {
+      state.aiCorrectionMode = false;
+      ui.gtMode.checked = false;
+    }
+    setStatus('وضع القياس V5.2 مفعّل: اختر نقطتين على سطح الـMesh.');
+  } else {
+    setStatus('تم إنهاء وضع القياس.');
+  }
+}
+
+function completeMeasurement(pointB) {
+  const pointA = state.measurePointA;
+  if (!pointA) return;
+
+  const dx = pointB.x - pointA.x;
+  const dy = pointB.y - pointA.y;
+  const dz = pointB.z - pointA.z;
+  const horizontal = Math.hypot(dx, dz);
+  const distance3d = pointA.distanceTo(pointB);
+  const id = `M${String(state.measurements.length + 1).padStart(2, '0')}`;
+
+  if (state.measureDraftMarker) {
+    state.measureDraftMarker.material.color.setHex(0x5cd7ff);
+    state.measureDraftMarker = null;
+  }
+  makeMeasurementMarker(pointB, false);
+
+  const geometry = new THREE.BufferGeometry().setFromPoints([pointA, pointB]);
+  const material = new THREE.LineBasicMaterial({
+    color: 0x5cd7ff,
+    depthTest: false,
+    transparent: true,
+    opacity: 0.95
+  });
+  const line = new THREE.Line(geometry, material);
+  line.renderOrder = 29;
+  line.userData.measurementId = id;
+  state.measurementGroup.add(line);
+
+  state.measurements.push({
+    id,
+    distance3d,
+    horizontal,
+    deltaY: dy,
+    a: { x: pointA.x, y: pointA.y, z: pointA.z },
+    b: { x: pointB.x, y: pointB.y, z: pointB.z }
+  });
+
+  if (ui.measurementStep) ui.measurementStep.textContent = `${id} محفوظ — اختر النقطة الأولى للقياس التالي`;
+  if (ui.measurementValue) ui.measurementValue.textContent = formatMeasure(distance3d);
+  if (ui.measurementDetails) ui.measurementDetails.textContent =
+    `أفقي ${horizontal.toFixed(3)} وحدة · ΔY ${dy.toFixed(3)} وحدة`;
+
+  state.measurePointA = null;
+  renderMeasurementHistory();
+  setStatus(`${id}: المسافة ثلاثية الأبعاد ${formatMeasure(distance3d)}، أفقية ${horizontal.toFixed(3)}، فرق الارتفاع ${dy.toFixed(3)}.`);
+}
+
+function applyMeasurementFromPointer() {
+  if (!state.modelRoot) return;
+  state.modelRoot.updateMatrixWorld(true);
+  const hits = raycaster.intersectObject(state.modelRoot, true)
+    .filter(hit => hit.object?.isMesh);
+
+  if (!hits.length) {
+    setStatus('لم يتم التقاط سطح. اضغط مباشرة على الـMesh.');
+    return;
+  }
+
+  const point = hits[0].point.clone();
+  if (!state.measurePointA) {
+    state.measurePointA = point;
+    removeDraftMeasurementMarker();
+    state.measureDraftMarker = makeMeasurementMarker(point, true);
+    if (ui.measurementStep) ui.measurementStep.textContent = 'النقطة الأولى محفوظة — اختر النقطة الثانية';
+    if (ui.measurementValue) ui.measurementValue.textContent = 'P1';
+    if (ui.measurementDetails) ui.measurementDetails.textContent =
+      `X ${point.x.toFixed(3)} · Y ${point.y.toFixed(3)} · Z ${point.z.toFixed(3)}`;
+    setStatus('تم تثبيت النقطة الأولى. اختر النقطة الثانية.');
+    return;
+  }
+
+  completeMeasurement(point);
+}
+
+function clearMeasurements() {
+  state.measurements = [];
+  state.measurePointA = null;
+  state.measureMode = false;
+  state.measureDraftMarker = null;
+  disposeGroup(state.measurementGroup, true);
+  if (ui.measureMode) {
+    ui.measureMode.classList.remove('measure-active');
+    ui.measureMode.textContent = 'بدء قياس نقطتين';
+  }
+  ui.measureTool?.classList.remove('measure-active');
+  if (ui.measurementCurrent) ui.measurementCurrent.classList.add('hidden');
+  if (ui.measurementValue) ui.measurementValue.textContent = '—';
+  if (ui.measurementDetails) ui.measurementDetails.textContent = '—';
+  renderer.domElement.style.cursor = '';
+  controls.enabled = !(state.mode === 'ai' && state.aiCorrectionMode);
+  renderMeasurementHistory();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function exportAnalysisReport() {
+  if (!state.modelRoot) return;
+  const size = state.modelBox.getSize(new THREE.Vector3());
+  const diagonal = size.length();
+  const rows = state.measurements.length
+    ? state.measurements.map(m => `
+      <tr>
+        <td>${m.id}</td>
+        <td>${m.distance3d.toFixed(3)}</td>
+        <td>${m.horizontal.toFixed(3)}</td>
+        <td>${m.deltaY.toFixed(3)}</td>
+        <td>${m.a.x.toFixed(3)}, ${m.a.y.toFixed(3)}, ${m.a.z.toFixed(3)}</td>
+        <td>${m.b.x.toFixed(3)}, ${m.b.y.toFixed(3)}, ${m.b.z.toFixed(3)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6">لا توجد قياسات محفوظة.</td></tr>';
+
+  const semanticRows = state.semanticReady && state.semanticSummary
+    ? Object.entries(state.semanticSummary).map(([key, count]) =>
+        `<li>${escapeHtml(SEMANTIC_CLASSES[key]?.label || key)}: ${formatNumber(count)} مثلث</li>`
+      ).join('')
+    : '<li>لم يتم تشغيل التحليل الدلالي في هذه الجلسة.</li>';
+
+  const aiSummary = state.aiReady && state.aiMeta
+    ? `<p>النموذج العصبي: <strong>${escapeHtml(state.aiMeta.model || state.aiMeta.model_name || 'PointNet')}</strong></p>
+       <p>متوسط الثقة: <strong>${state.aiMeta.mean_confidence != null ? (state.aiMeta.mean_confidence * 100).toFixed(1) + '%' : '—'}</strong></p>`
+    : '<p>لا توجد نتيجة AI محملة في هذه الجلسة.</p>';
+
+  const html = `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Gaza 3D GIS Lab — تقرير التحليل</title>
+<style>
+body{font-family:Arial,Tahoma,sans-serif;max-width:1100px;margin:32px auto;padding:0 24px;color:#14202a;line-height:1.7}
+h1,h2{color:#0b5f7d} .meta{color:#516673;font-size:13px}.warn{padding:12px 14px;background:#fff4d8;border:1px solid #efd28c;border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.card{padding:12px;border:1px solid #d8e4ea;border-radius:10px}.card span{display:block;color:#6b7d86;font-size:12px}.card strong{font-size:16px}
+table{width:100%;border-collapse:collapse;font-size:12px;direction:ltr}th,td{border:1px solid #d8e4ea;padding:7px;text-align:center}th{background:#eef7fa}
+@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<h1>Gaza 3D GIS Lab — تقرير التحليل الهندسي</h1>
+<p class="meta">الإصدار: ${APP_VERSION} · التاريخ: ${new Date().toLocaleString('ar-EG')} · النموذج: ${escapeHtml(state.sourceName)}</p>
+<p class="warn">تنبيه: هذه القياسات بوحدات النموذج المحلية وليست أمتارًا أو إحداثيات GIS حتى تتم معايرة المقياس وإضافة المرجعية المكانية.</p>
+<h2>ملخص النموذج</h2>
+<div class="grid">
+  <div class="card"><span>المثلثات</span><strong>${formatNumber(state.totalTriangles)}</strong></div>
+  <div class="card"><span>Meshes</span><strong>${formatNumber(state.totalMeshes)}</strong></div>
+  <div class="card"><span>الأبعاد X × Y × Z</span><strong>${size.x.toFixed(3)} × ${size.y.toFixed(3)} × ${size.z.toFixed(3)}</strong></div>
+  <div class="card"><span>قطر 3D</span><strong>${diagonal.toFixed(3)}</strong></div>
+  <div class="card"><span>الغلاف الأفقي X×Z</span><strong>${(size.x * size.z).toFixed(3)} وحدة²</strong></div>
+  <div class="card"><span>عدد القياسات</span><strong>${formatNumber(state.measurements.length)}</strong></div>
+</div>
+<h2>القياسات</h2>
+<table>
+<thead><tr><th>ID</th><th>3D</th><th>Horizontal</th><th>ΔY</th><th>Point A</th><th>Point B</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<h2>التحليل الدلالي</h2>
+<ul>${semanticRows}</ul>
+<h2>الذكاء الاصطناعي</h2>
+${aiSummary}
+</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `gaza_3d_analysis_${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  setStatus('تم تصدير تقرير التحليل الهندسي بصيغة HTML.');
 }
 
 function exportSelectedJSON() {
@@ -1932,11 +2214,12 @@ ui.viewAi?.addEventListener('click', () => setViewMode('ai'));
 ui.gtMode?.addEventListener('change', () => {
   state.aiCorrectionMode = Boolean(ui.gtMode.checked);
   if (state.aiCorrectionMode) {
+    if (state.measureMode) setMeasurementMode(false);
     setViewMode('ai');
     controls.enabled = false;
     setStatus('وضع Ground Truth مفعّل: اضغط على نقاط AI لتصحيحها. أوقف الوضع للعودة للدوران والتحريك.');
   } else {
-    controls.enabled = true;
+    controls.enabled = !state.measureMode;
     setStatus('تم إيقاف وضع التصحيح. يمكنك تحريك الكاميرا مجددًا.');
   }
 });
@@ -1987,6 +2270,10 @@ ui.focusSelected.addEventListener('click', () => {
 });
 ui.exportJson.addEventListener('click', exportSelectedJSON);
 ui.toggleWireframe.addEventListener('click', toggleWireframe);
+ui.measureMode?.addEventListener('click', () => setMeasurementMode(!state.measureMode));
+ui.measureTool?.addEventListener('click', () => setMeasurementMode(!state.measureMode));
+ui.clearMeasurements?.addEventListener('click', () => { clearMeasurements(); setStatus('تم مسح جميع القياسات.'); });
+ui.exportAnalysisReport?.addEventListener('click', exportAnalysisReport);
 ui.resetView.addEventListener('click', () => fitCameraToBox(state.modelBox));
 renderer.domElement.addEventListener('pointerdown', onPointerDown);
 ui.gridPreset.addEventListener('change', () => { if (state.segmented) setStatus('غيّرت دقة الشبكة. اضغط «إنشاء المناطق» لإعادة التقسيم.'); });
