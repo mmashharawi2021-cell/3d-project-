@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07131f" />
-  <title>Gaza 3D GIS Lab — V5.1 Ground Truth</title>
+  <title>Gaza 3D GIS Lab — V5.2 Engineering Analysis</title>
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
   {
@@ -51,6 +51,42 @@
             <div><span>Meshes</span><strong id="meshes">—</strong></div>
             <div><span>العرض</span><strong id="dim-x">—</strong></div>
             <div><span>العمق</span><strong id="dim-z">—</strong></div>
+          </div>
+        </section>
+
+
+        <section id="engineering-panel">
+          <div class="section-title-row">
+            <h2>التحليل الهندسي</h2>
+            <span id="analysis-state" class="badge">V5.2</span>
+          </div>
+          <p class="hint">قياسات مباشرة من سطح الـMesh. القيم بوحدات النموذج المحلية حتى تتم إضافة المرجعية المكانية ومقياس حقيقي.</p>
+
+          <div class="stats-grid compact">
+            <div><span>الارتفاع الكلي</span><strong id="dim-y">—</strong></div>
+            <div><span>الغلاف الأفقي</span><strong id="plan-envelope">—</strong></div>
+            <div><span>قطر النموذج 3D</span><strong id="model-diagonal">—</strong></div>
+            <div><span>القياسات</span><strong id="measurement-count">0</strong></div>
+          </div>
+
+          <div class="method-chips">
+            <span>Raycast</span><span>3D Distance</span><span>Δ Height</span><span>HTML Report</span>
+          </div>
+
+          <div class="action-stack">
+            <button id="measure-mode" class="primary-btn" disabled>بدء قياس نقطتين</button>
+            <button id="clear-measurements" class="secondary-btn" disabled>مسح القياسات</button>
+            <button id="export-analysis-report" class="secondary-btn" disabled>تصدير تقرير التحليل HTML</button>
+          </div>
+
+          <div id="measurement-current" class="measurement-current hidden">
+            <span id="measurement-step">اختر النقطة الأولى</span>
+            <strong id="measurement-value">—</strong>
+            <small id="measurement-details">—</small>
+          </div>
+
+          <div id="measurement-history" class="measurement-history">
+            <div class="measurement-empty">لا توجد قياسات محفوظة بعد.</div>
           </div>
         </section>
 
@@ -233,7 +269,8 @@
             <li class="done">تقسيم وتحديد أجزاء الـMesh</li>
             <li class="done">Enhanced Semantic V4.2 + Training Bootstrap</li>
             <li class="done">PointNet Neural AI</li>
-            <li class="active">Human Ground Truth + Retraining</li>
+            <li class="done">Human Ground Truth + Retraining</li>
+            <li class="active">3D Measurement + Engineering Report</li>
             <li>Georeferencing</li>
             <li>GIS Export</li>
           </ol>
@@ -253,6 +290,7 @@
           <button id="view-segments" class="tool" disabled>المناطق</button>
           <button id="view-semantic" class="tool" disabled>دلالي</button>
           <button id="view-ai" class="tool" disabled>AI</button>
+          <button id="measure-tool" class="tool" disabled>قياس</button>
           <button id="toggle-wireframe" class="tool">Wireframe</button>
         </div>
         <div id="status" class="status-pill">تحميل نموذج غزة…</div>
