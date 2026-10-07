@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#06111b">
+  <title>Gaza 3D GIS Lab — الخطط والأسعار</title>
+  <link rel="stylesheet" href="./pricing.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="noise"></div>
+
+  <header class="pricing-nav glass">
+    <a class="brand-link" href="./index.html">
+      <span class="brand-mark">G3</span>
+      <span class="brand-text">
+        <strong>Gaza 3D GIS Lab</strong>
+        <small>3D · GIS · AI Analysis</small>
+      </span>
+    </a>
+    <div class="nav-actions">
+      <span class="current-plan">خطتك الحالية: <strong id="current-plan-label">Free</strong></span>
+      <a class="back-link" href="./index.html">العودة للمختبر</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="eyebrow"><span></span> خطط مرنة للتحليل ثلاثي الأبعاد</div>
+      <h1>اختر مستوى العمل المناسب<br><em>لمشاريعك ثلاثية الأبعاد.</em></h1>
+      <p>ابدأ مجانًا، ثم انتقل إلى أدوات التحليل الهندسي والذكاء الاصطناعي وGIS عندما تحتاجها.</p>
+
+      <div class="billing-switch glass-soft" role="group" aria-label="دورة الفوترة">
+        <button class="billing-option active" data-cycle="monthly">شهري</button>
+        <button class="billing-option" data-cycle="yearly">سنوي <span>وفر 20%</span></button>
+      </div>
+
+      <div class="hero-trust">
+        <span>بدون بطاقة للخطة المجانية</span>
+        <i></i>
+        <span>يمكن تغيير الخطة لاحقًا</span>
+        <i></i>
+        <span>بيانات المشاريع تبقى ملكك</span>
+      </div>
+    </section>
+
+    <section class="plans" aria-label="خطط الاشتراك">
+      <article class="plan-card" data-plan="free">
+        <div class="card-top">
+          <div>
+            <span class="plan-kicker">للبداية</span>
+            <h2>Free</h2>
+          </div>
+          <span class="plan-icon">F</span>
+        </div>
+        <p class="plan-desc">استكشف العارض وأدوات القياس الأساسية قبل الانتقال للعمل الاحترافي.</p>
+        <div class="price-row">
+          <span class="currency">$</span><strong class="price" data-monthly="0" data-yearly="0">0</strong>
+          <span class="price-suffix">/ شهر</span>
+        </div>
+        <div class="billing-note">مجاني دائمًا</div>
+        <button class="plan-cta secondary" data-action="select" data-plan="free">ابدأ مجانًا</button>
+        <ul>
+          <li class="yes">مشروع نشط واحد</li>
+          <li class="yes">GLB / GLTF حتى 150 MB</li>
+          <li class="yes">10 قياسات ثلاثية الأبعاد</li>
+          <li class="yes">تقرير HTML أساسي</li>
+          <li class="muted">تحليل دلالي محدود</li>
+          <li class="no">AI متقدم</li>
+          <li class="no">GIS Export</li>
+        </ul>
+      </article>
+
+      <article class="plan-card" data-plan="pro">
+        <div class="card-top">
+          <div>
+            <span class="plan-kicker">للمهندس الفردي</span>
+            <h2>Pro</h2>
+          </div>
+          <span class="plan-icon">P</span>
+        </div>
+        <p class="plan-desc">للعمل اليومي على نماذج متعددة مع تقارير وتحليل هندسي متقدم.</p>
+        <div class="price-row">
+          <span class="currency">$</span><strong class="price" data-monthly="12" data-yearly="10">12</strong>
+          <span class="price-suffix">/ شهر</span>
+        </div>
+        <div class="billing-note" data-monthly-note="تدفع شهريًا" data-yearly-note="$120 سنويًا">تدفع شهريًا</div>
+        <button class="plan-cta secondary" data-action="checkout" data-plan="pro">اختيار Pro</button>
+        <ul>
+          <li class="yes">حتى 10 مشاريع</li>
+          <li class="yes">ملف حتى 1 GB</li>
+          <li class="yes">قياسات غير محدودة</li>
+          <li class="yes">Semantic Analysis كامل</li>
+          <li class="yes">JSON / OBJ Export</li>
+          <li class="yes">تقارير هندسية موسعة</li>
+          <li class="muted">AI بحصة شهرية</li>
+        </ul>
+      </article>
+
+      <article class="plan-card featured" data-plan="pro_plus">
+        <div class="popular-badge">الأكثر اختيارًا</div>
+        <div class="shine"></div>
+        <div class="card-top">
+          <div>
+            <span class="plan-kicker">للعمل الاحترافي</span>
+            <h2>Pro+</h2>
+          </div>
+          <span class="plan-icon premium">+</span>
+        </div>
+        <p class="plan-desc">الحزمة الكاملة لـ 3D + AI + GIS، مناسبة للتحليل الفني والمشاريع الكبيرة.</p>
+        <div class="price-row">
+          <span class="currency">$</span><strong class="price" data-monthly="29" data-yearly="24">29</strong>
+          <span class="price-suffix">/ شهر</span>
+        </div>
+        <div class="billing-note" data-monthly-note="تدفع شهريًا" data-yearly-note="$288 سنويًا">تدفع شهريًا</div>
+        <button class="plan-cta primary" data-action="checkout" data-plan="pro_plus">الترقية إلى Pro+</button>
+        <ul>
+          <li class="yes">حتى 50 مشروعًا</li>
+          <li class="yes">ملفات كبيرة ومعالجة أعلى</li>
+          <li class="yes">PointNet AI Analysis</li>
+          <li class="yes">Ground Truth + Retraining</li>
+          <li class="yes">GIS Export</li>
+          <li class="yes">Batch Analysis</li>
+          <li class="yes">تقارير احترافية متقدمة</li>
+        </ul>
+      </article>
+
+      <article class="plan-card business" data-plan="business">
+        <div class="card-top">
+          <div>
+            <span class="plan-kicker">للفرق والمؤسسات</span>
+            <h2>Business</h2>
+          </div>
+          <span class="plan-icon">B</span>
+        </div>
+        <p class="plan-desc">بيئة عمل مشتركة للمؤسسات، مع إدارة مستخدمين وصلاحيات وتخصيص كامل.</p>
+        <div class="business-price">سعر مخصص</div>
+        <div class="billing-note">حسب عدد المستخدمين وحجم المعالجة</div>
+        <button class="plan-cta secondary" data-action="business" data-plan="business">طلب خطة Business</button>
+        <ul>
+          <li class="yes">Workspace للفريق</li>
+          <li class="yes">Users / Admin / Roles</li>
+          <li class="yes">White Label للتقارير</li>
+          <li class="yes">API Integration</li>
+          <li class="yes">أولوية معالجة</li>
+          <li class="yes">تخزين مخصص</li>
+          <li class="yes">خيارات نشر خاصة</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="usage-preview glass">
+      <div class="usage-copy">
+        <span class="section-kicker">شفافية الاستخدام</span>
+        <h2>اعرف حدود خطتك قبل الترقية</h2>
+        <p>واجهة الاستخدام داخل المختبر ستعرض لك المشاريع والتخزين وتحليلات AI المتبقية بشكل واضح.</p>
+      </div>
+      <div class="usage-card">
+        <div class="usage-head"><span>Pro+ Workspace</span><strong>68%</strong></div>
+        <div class="usage-item"><span>المشاريع</span><b>34 / 50</b><i><u style="width:68%"></u></i></div>
+        <div class="usage-item"><span>التخزين</span><b>18.2 / 40 GB</b><i><u style="width:46%"></u></i></div>
+        <div class="usage-item"><span>AI Analysis</span><b>71 / 100</b><i><u style="width:71%"></u></i></div>
+      </div>
+    </section>
+
+    <section class="compare-section">
+      <div class="section-heading">
+        <span class="section-kicker">مقارنة كاملة</span>
+        <h2>كل ما تحتاج معرفته قبل الاختيار</h2>
+      </div>
+      <div class="compare-wrap glass">
+        <table>
+          <thead>
+            <tr><th>الميزة</th><th>Free</th><th>Pro</th><th class="hot">Pro+</th><th>Business</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>3D Viewer</td><td>✓</td><td>✓</td><td class="hot">✓</td><td>✓</td></tr>
+            <tr><td>المشاريع</td><td>1</td><td>10</td><td class="hot">50</td><td>مخصص</td></tr>
+            <tr><td>القياسات</td><td>10</td><td>غير محدود</td><td class="hot">غير محدود</td><td>غير محدود</td></tr>
+            <tr><td>Semantic Analysis</td><td>محدود</td><td>كامل</td><td class="hot">كامل</td><td>كامل</td></tr>
+            <tr><td>PointNet AI</td><td>—</td><td>حصة محدودة</td><td class="hot">✓</td><td>✓</td></tr>
+            <tr><td>Ground Truth</td><td>—</td><td>—</td><td class="hot">✓</td><td>✓</td></tr>
+            <tr><td>GIS Export</td><td>—</td><td>—</td><td class="hot">✓</td><td>✓</td></tr>
+            <tr><td>Batch Analysis</td><td>—</td><td>—</td><td class="hot">✓</td><td>✓</td></tr>
+            <tr><td>Team Workspace</td><td>—</td><td>—</td><td class="hot">—</td><td>✓</td></tr>
+            <tr><td>API</td><td>—</td><td>—</td><td class="hot">—</td><td>✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="faq-section">
+      <div class="section-heading">
+        <span class="section-kicker">الأسئلة الشائعة</span>
+        <h2>تفاصيل مهمة قبل الاشتراك</h2>
+      </div>
+      <div class="faq-grid">
+        <details class="glass-soft"><summary>هل أحتاج بطاقة للخطة المجانية؟</summary><p>لا. يمكن تفعيل Free مباشرة واستخدام الميزات المتاحة لها.</p></details>
+        <details class="glass-soft"><summary>هل الأسعار نهائية؟</summary><p>هذه واجهة التسعير الأولية للمشروع. يمكن تعديل الأسعار والحصص قبل تشغيل الدفع الحقيقي.</p></details>
+        <details class="glass-soft"><summary>هل يمكن تغيير الخطة لاحقًا؟</summary><p>نعم. تصميم النظام يسمح بالترقية أو الرجوع للخطة المناسبة دون تغيير المشروع الأساسي.</p></details>
+        <details class="glass-soft"><summary>هل Business مجرد Pro+ أكبر؟</summary><p>لا. Business مخصص للفرق ويضيف الصلاحيات وWorkspace وAPI وWhite Label وخيارات النشر المؤسسي.</p></details>
+      </div>
+    </section>
+
+    <section class="final-cta glass">
+      <div>
+        <span class="section-kicker">ابدأ بدون التزام</span>
+        <h2>اختبر المنصة أولًا، ثم رقِّ عندما تحتاج أدوات أكثر.</h2>
+      </div>
+      <button class="plan-cta primary compact" data-action="select" data-plan="free">ابدأ بالخطة المجانية</button>
+    </section>
+  </main>
+
+  <footer>
+    <span>Gaza 3D GIS Lab</span>
+    <span>واجهة التسعير V5.3</span>
+  </footer>
+
+  <div id="checkout-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="checkout-modal glass" role="dialog" aria-modal="true" aria-labelledby="checkout-title">
+      <button id="modal-close" class="modal-close" aria-label="إغلاق">×</button>
+      <div class="checkout-brand"><span>G3</span><div><strong>ترقية الخطة</strong><small>Secure checkout preview</small></div></div>
+      <div class="checkout-summary">
+        <span>الخطة المختارة</span>
+        <h3 id="checkout-title">Pro+</h3>
+        <div class="checkout-price"><strong id="checkout-price">$29</strong><span id="checkout-cycle">/ شهر</span></div>
+      </div>
+      <div class="checkout-lines">
+        <div><span>الاشتراك</span><strong id="checkout-plan-line">Pro+</strong></div>
+        <div><span>الفوترة</span><strong id="checkout-billing-line">شهري</strong></div>
+        <div><span>الإجمالي الآن</span><strong id="checkout-total">$29</strong></div>
+      </div>
+      <div class="payment-placeholder">
+        <span class="lock-dot">◆</span>
+        <div><strong>واجهة الدفع جاهزة للربط</strong><small>لم يتم ربط مزود دفع فعلي حتى الآن، لذلك لن يتم تحصيل أي مبلغ.</small></div>
+      </div>
+      <button id="confirm-preview" class="plan-cta primary">اعتماد الخطة للتجربة</button>
+      <p class="modal-note">هذا الزر يحفظ الخطة محليًا في النسخة الحالية فقط.</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="./pricing.js"></script>
+</body>
+</html>
