@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const APP_VERSION = 'V5.2.0';
+const APP_VERSION = 'V5.3.0';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -46,10 +46,16 @@ const ui = {
   clearMeasurements: $('clear-measurements'), exportAnalysisReport: $('export-analysis-report'),
   measurementCurrent: $('measurement-current'), measurementStep: $('measurement-step'),
   measurementValue: $('measurement-value'), measurementDetails: $('measurement-details'),
-  measurementHistory: $('measurement-history')
+  measurementHistory: $('measurement-history'), activePlanLabel: $('active-plan-label')
 };
 
 if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
+const savedPlan = (() => {
+  try { return localStorage.getItem('gaza3d_plan') || 'free'; }
+  catch { return 'free'; }
+})();
+const PLAN_LABELS = { free: 'Free', pro: 'Pro', pro_plus: 'Pro+', business: 'Business' };
+if (ui.activePlanLabel) ui.activePlanLabel.textContent = PLAN_LABELS[savedPlan] || 'Free';
 
 const state = {
   modelRoot: null,
