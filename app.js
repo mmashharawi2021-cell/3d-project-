@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const APP_VERSION = 'V5.3.0';
+const APP_VERSION = 'V5.4.0';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -46,7 +46,7 @@ const ui = {
   clearMeasurements: $('clear-measurements'), exportAnalysisReport: $('export-analysis-report'),
   measurementCurrent: $('measurement-current'), measurementStep: $('measurement-step'),
   measurementValue: $('measurement-value'), measurementDetails: $('measurement-details'),
-  measurementHistory: $('measurement-history'), activePlanLabel: $('active-plan-label')
+  measurementHistory: $('measurement-history'), activePlanLabel: $('active-plan-label'), authEntry: $('auth-entry')
 };
 
 if (ui.appVersion) ui.appVersion.textContent = APP_VERSION;
@@ -56,6 +56,16 @@ const savedPlan = (() => {
 })();
 const PLAN_LABELS = { free: 'Free', pro: 'Pro', pro_plus: 'Pro+', business: 'Business' };
 if (ui.activePlanLabel) ui.activePlanLabel.textContent = PLAN_LABELS[savedPlan] || 'Free';
+const savedSession = (() => {
+  try { return JSON.parse(localStorage.getItem('gaza3d_session') || 'null'); }
+  catch { return null; }
+})();
+if (ui.authEntry && savedSession?.email) {
+  const display = savedSession.name || savedSession.email.split('@')[0] || 'الحساب';
+  ui.authEntry.textContent = display.length > 14 ? display.slice(0, 14) + '…' : display;
+  ui.authEntry.href = './login.html?mode=account';
+  ui.authEntry.classList.add('signed-in');
+}
 
 const state = {
   modelRoot: null,
