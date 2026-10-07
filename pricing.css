@@ -76,3 +76,22 @@ footer{max-width:1220px;margin:0 auto;padding:0 18px 28px;display:flex;justify-c
 .plan-card.is-current{box-shadow:inset 0 0 0 1px rgba(121,227,183,.32),0 20px 55px rgba(0,0,0,.25)}
 .plan-card.is-current:after{content:"خطتك الحالية";position:absolute;bottom:12px;left:12px;color:var(--green);font-size:8px}
 .plan-cta:disabled{opacity:.48;cursor:default;transform:none!important;filter:none!important}
+
+/* V5.4 pricing refinement */
+.login-link{
+  color:#ece9ff;text-decoration:none;font-size:10px;padding:9px 12px;border-radius:10px;
+  border:1px solid rgba(159,147,255,.17);background:rgba(159,147,255,.05)
+}
+.login-link.signed-in{color:#dff9ee;border-color:rgba(121,227,183,.2);background:rgba(121,227,183,.05)}
+.plan-flow{display:inline-flex;align-items:center;gap:10px;padding:7px 12px;border-radius:15px;margin:20px auto 13px}
+.plan-flow>i{width:32px;height:1px;background:linear-gradient(90deg,rgba(92,215,255,.22),rgba(121,227,183,.18))}
+.flow-step{display:flex;align-items:center;gap:6px;color:#7893a1}
+.flow-step b{width:22px;height:22px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.07);font-size:9px}
+.flow-step small{font-size:9px}
+.flow-step.active{color:#dff9ee}.flow-step.active b{background:rgba(121,227,183,.10);border-color:rgba(121,227,183,.22);color:var(--green)}
+.plan-card:before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:radial-gradient(circle at 50% -10%,rgba(255,255,255,.045),transparent 38%)}
+.plan-card .plan-cta{position:relative;z-index:2}
+.plan-card.featured .price{color:#dffff0}
+.plan-card.business .business-price{background:linear-gradient(90deg,#eeeaff,#bfb8ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.checkout-modal{overflow:hidden}.checkout-modal:before{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-90px;top:-110px;background:rgba(92,215,255,.08);filter:blur(40px);pointer-events:none}
+@media(max-width:640px){.plan-flow{gap:6px;padding:7px 9px}.plan-flow>i{width:15px}.flow-step small{display:none}.login-link{padding:8px 9px}}
