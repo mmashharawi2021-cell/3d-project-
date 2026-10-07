@@ -22,6 +22,7 @@
     </a>
     <div class="nav-actions">
       <span class="current-plan">خطتك الحالية: <strong id="current-plan-label">Free</strong></span>
+      <a id="pricing-auth-link" class="login-link" href="./login.html">تسجيل الدخول</a>
       <a class="back-link" href="./index.html">العودة للمختبر</a>
     </div>
   </header>
@@ -35,6 +36,14 @@
       <div class="billing-switch glass-soft" role="group" aria-label="دورة الفوترة">
         <button class="billing-option active" data-cycle="monthly">شهري</button>
         <button class="billing-option" data-cycle="yearly">سنوي <span>وفر 20%</span></button>
+      </div>
+
+      <div class="plan-flow glass-soft" aria-label="خطوات البدء">
+        <span class="flow-step active"><b>1</b><small>اختر الخطة</small></span>
+        <i></i>
+        <span class="flow-step"><b>2</b><small>أنشئ حسابك</small></span>
+        <i></i>
+        <span class="flow-step"><b>3</b><small>ابدأ المشروع</small></span>
       </div>
 
       <div class="hero-trust">
@@ -215,7 +224,7 @@
 
   <footer>
     <span>Gaza 3D GIS Lab</span>
-    <span>واجهة التسعير V5.3</span>
+    <span>واجهة التسعير V5.4</span>
   </footer>
 
   <div id="checkout-modal" class="modal-backdrop hidden" aria-hidden="true">
@@ -236,8 +245,8 @@
         <span class="lock-dot">◆</span>
         <div><strong>واجهة الدفع جاهزة للربط</strong><small>لم يتم ربط مزود دفع فعلي حتى الآن، لذلك لن يتم تحصيل أي مبلغ.</small></div>
       </div>
-      <button id="confirm-preview" class="plan-cta primary">اعتماد الخطة للتجربة</button>
-      <p class="modal-note">هذا الزر يحفظ الخطة محليًا في النسخة الحالية فقط.</p>
+      <button id="confirm-preview" class="plan-cta primary">متابعة</button>
+      <p id="modal-note" class="modal-note">سنطلب تسجيل الدخول قبل تفعيل الخطة إذا لم يكن لديك حساب.</p>
     </div>
   </div>
 
