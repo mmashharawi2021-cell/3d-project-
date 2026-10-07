@@ -299,3 +299,40 @@ h1 { margin: 0; font-size: 17px; letter-spacing: .2px; }
   }
   .tool { padding: 7px 8px; font-size: 10px; }
 }
+
+
+/* V5.3 pricing entry */
+.plan-pill {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:24px;
+  padding:4px 8px;
+  border-radius:999px;
+  border:1px solid rgba(111,227,182,.28);
+  background:linear-gradient(135deg,rgba(111,227,182,.12),rgba(92,215,255,.08));
+  color:#e9fff7;
+  text-decoration:none;
+  font-size:10px;
+  box-shadow:inset 0 0 18px rgba(111,227,182,.04);
+}
+.plan-pill span { font-weight:800; direction:ltr; }
+.plan-pill small { color:#91cdb8; font-size:8px; }
+.pricing-link {
+  width:auto;
+  min-width:118px;
+  border-radius:12px;
+  border:1px solid rgba(111,227,182,.22);
+  padding:10px 12px;
+  color:#e5fff4;
+  text-decoration:none;
+  background:linear-gradient(135deg,rgba(111,227,182,.09),rgba(92,215,255,.055));
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:11px;
+}
+.pricing-link:hover,.plan-pill:hover { border-color:rgba(111,227,182,.52); }
+@media(max-width:900px){
+  .pricing-link{flex:1}
+}
