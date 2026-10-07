@@ -336,3 +336,13 @@ h1 { margin: 0; font-size: 17px; letter-spacing: .2px; }
 @media(max-width:900px){
   .pricing-link{flex:1}
 }
+
+/* V5.4 account entry */
+.auth-link{
+  width:auto;min-width:104px;border-radius:12px;border:1px solid rgba(159,147,255,.19);
+  padding:10px 12px;color:#ebe8ff;text-decoration:none;background:rgba(159,147,255,.055);
+  display:inline-flex;align-items:center;justify-content:center;font-size:11px
+}
+.auth-link:hover{border-color:rgba(159,147,255,.42);background:rgba(159,147,255,.09)}
+.auth-link.signed-in{color:#dff9ee;border-color:rgba(111,227,182,.2);background:rgba(111,227,182,.055)}
+@media(max-width:900px){.auth-link{flex:1}}
