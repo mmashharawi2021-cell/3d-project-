@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#06111b">
+  <title>Gaza 3D GIS Lab — تسجيل الدخول</title>
+  <link rel="stylesheet" href="./login.css">
+</head>
+<body>
+  <div class="orb orb-one"></div><div class="orb orb-two"></div><div class="noise"></div>
+  <main class="auth-shell">
+    <section class="visual-panel">
+      <a class="auth-brand" href="./index.html">
+        <span class="brand-mark">G3</span>
+        <span><strong>Gaza 3D GIS Lab</strong><small>3D · GIS · AI Analysis</small></span>
+      </a>
+
+      <div class="visual-content">
+        <span class="visual-kicker"><i></i> Workspace آمن لمشاريعك</span>
+        <h1>من النموذج الخام<br><em>إلى قرار هندسي أوضح.</em></h1>
+        <p>ادخل إلى مشاريعك، القياسات، التحليل الدلالي ونتائج AI من مساحة عمل واحدة.</p>
+
+        <div class="product-frame">
+          <div class="frame-top"><span></span><span></span><span></span><b>Gaza 3D / Project 01</b></div>
+          <div class="frame-body">
+            <div class="mini-sidebar">
+              <span class="active"></span><span></span><span></span><span></span>
+            </div>
+            <div class="mesh-preview">
+              <div class="grid-plane"></div>
+              <div class="mesh mesh-a"></div><div class="mesh mesh-b"></div><div class="mesh mesh-c"></div>
+              <div class="scan-line"></div>
+              <div class="float-chip chip-a">Semantic 92%</div>
+              <div class="float-chip chip-b">ΔY 4.82</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="benefits">
+          <span><b>✓</b> حفظ خطتك المختارة</span>
+          <span><b>✓</b> مشاريعك في مكان واحد</span>
+          <span><b>✓</b> جاهز لـ Firebase Auth لاحقًا</span>
+        </div>
+      </div>
+
+      <div class="visual-footer"><span>V5.4 Accounts</span><a href="./pricing.html">الخطط والأسعار</a></div>
+    </section>
+
+    <section class="form-panel">
+      <div class="mobile-brand"><span class="brand-mark">G3</span><strong>Gaza 3D GIS Lab</strong></div>
+
+      <div id="selected-plan-card" class="selected-plan-card hidden">
+        <span>الخطة المختارة</span>
+        <strong id="selected-plan-name">Pro+</strong>
+        <small id="selected-plan-cycle">فوترة شهرية</small>
+      </div>
+
+      <div class="form-wrap" id="auth-form-wrap">
+        <div class="form-heading">
+          <span id="form-eyebrow">مرحبًا بعودتك</span>
+          <h2 id="form-title">تسجيل الدخول</h2>
+          <p id="form-subtitle">استخدم بريدك الإلكتروني للدخول إلى مساحة العمل.</p>
+        </div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-view="login">تسجيل الدخول</button>
+          <button class="auth-tab" data-view="signup">إنشاء حساب</button>
+        </div>
+
+        <form id="login-form" class="auth-form">
+          <label><span>البريد الإلكتروني</span><input id="login-email" type="email" autocomplete="email" placeholder="name@example.com" required></label>
+          <label><span>كلمة المرور</span><div class="password-wrap"><input id="login-password" type="password" autocomplete="current-password" placeholder="••••••••" minlength="6" required><button type="button" class="toggle-pass" data-target="login-password">إظهار</button></div></label>
+          <div class="form-meta"><label class="remember"><input id="remember-me" type="checkbox" checked><span>تذكرني</span></label><button type="button" id="forgot-link" class="text-btn">نسيت كلمة المرور؟</button></div>
+          <button class="submit-btn" type="submit"><span>تسجيل الدخول</span><b>←</b></button>
+        </form>
+
+        <form id="signup-form" class="auth-form hidden">
+          <label><span>الاسم</span><input id="signup-name" type="text" autocomplete="name" placeholder="اسم المستخدم" required></label>
+          <label><span>البريد الإلكتروني</span><input id="signup-email" type="email" autocomplete="email" placeholder="name@example.com" required></label>
+          <label><span>كلمة المرور</span><div class="password-wrap"><input id="signup-password" type="password" autocomplete="new-password" placeholder="6 أحرف على الأقل" minlength="6" required><button type="button" class="toggle-pass" data-target="signup-password">إظهار</button></div></label>
+          <label class="terms"><input id="terms" type="checkbox" required><span>أوافق على شروط الاستخدام وسياسة الخصوصية التجريبية.</span></label>
+          <button class="submit-btn" type="submit"><span>إنشاء الحساب والمتابعة</span><b>←</b></button>
+        </form>
+
+        <div class="divider"><span>أو</span></div>
+        <button id="google-preview" class="social-btn" type="button"><span class="google-g">G</span><b>المتابعة باستخدام Google</b><small>قريبًا</small></button>
+
+        <p class="security-note"><span>◆</span> المصادقة في هذه النسخة تجريبية ومحلية؛ لم يتم ربط Firebase Auth بعد.</p>
+      </div>
+
+      <div id="account-view" class="account-view hidden">
+        <div class="account-avatar" id="account-avatar">U</div>
+        <span class="account-kicker">أنت مسجل الدخول</span>
+        <h2 id="account-name">الحساب</h2>
+        <p id="account-email">—</p>
+        <div class="account-grid">
+          <div><span>الخطة</span><strong id="account-plan">Free</strong></div>
+          <div><span>الحالة</span><strong class="success">نشط</strong></div>
+        </div>
+        <a class="submit-btn link-btn" href="./index.html"><span>فتح المختبر</span><b>←</b></a>
+        <a class="secondary-action" href="./pricing.html">إدارة الخطة</a>
+        <button id="logout-btn" class="danger-action" type="button">تسجيل الخروج من النسخة التجريبية</button>
+      </div>
+
+      <div class="form-footer"><a href="./index.html">العودة للمختبر</a><span>·</span><a href="./pricing.html">الأسعار</a></div>
+    </section>
+  </main>
+
+  <div id="forgot-modal" class="modal-backdrop hidden">
+    <div class="forgot-modal">
+      <button id="forgot-close" class="modal-close">×</button>
+      <span class="modal-icon">↺</span>
+      <h3>استعادة كلمة المرور</h3>
+      <p>واجهة جاهزة للربط مع Firebase Password Reset لاحقًا.</p>
+      <label><span>البريد الإلكتروني</span><input id="reset-email" type="email" placeholder="name@example.com"></label>
+      <button id="reset-preview" class="submit-btn" type="button"><span>إرسال رابط الاستعادة</span><b>←</b></button>
+    </div>
+  </div>
+
+  <div id="auth-toast" class="toast hidden"></div>
+  <script src="./login.js"></script>
+</body>
+</html>
